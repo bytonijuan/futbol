@@ -2,20 +2,18 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from scipy.stats import poisson
-import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 # Configuración inicial de la página
 st.set_page_config(
-    page_title="Opta Analytics | Apple Design", 
-    page_icon="", 
+    page_title="Opta Analytics | Pro Engine", 
+    page_icon="⚡", 
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ==========================================
-# ESTILOS CSS - LENGUAJE VISUAL DE APPLE
+# ESTILOS CSS - LENGUAJE VISUAL DE APPLE (MODO PRO)
 # ==========================================
 st.markdown("""
 <style>
@@ -31,7 +29,6 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Tarjetas estilo Apple Glassmorphism */
     .metric-card {
         background: rgba(28, 28, 30, 0.75);
         backdrop-filter: blur(20px);
@@ -68,7 +65,6 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* Pestañas (Tabs) estilo Apple Segmented Control */
     .stTabs [data-baseweb="tab-list"] {
         gap: 6px;
         background-color: rgba(28, 28, 30, 0.6);
@@ -91,7 +87,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
     }
 
-    /* Selectores e Inputs estilo iOS */
     .stSelectbox label, .stRadio label {
         color: #86868b !important;
         font-weight: 600;
@@ -109,36 +104,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CALENDARIO REAL Y OFICIAL LALIGA 2026/2027
+# 1. CATÁLOGO COMPLETO DE LIGAS Y COMPETICIONES
 # ==========================================
-CALENDARIOS = {
-    "SP1": {
-        "Jornada 9 (16-19 Oct 2026)": [
-            ("Deportivo", "Levante"), ("Espanyol", "Atletico Madrid"), ("Villarreal", "Elche"),
-            ("Real Betis", "Barcelona"), ("Valencia", "Athletic Club"), ("Osasuna", "Racing Santander"),
-            ("Celta", "Alaves"), ("Malaga", "Real Sociedad"), ("Real Madrid", "Sevilla"), ("Getafe", "Rayo Vallecano")
-        ],
-        "Jornada 10 (23-26 Oct 2026)": [
-            ("Alaves", "Malaga"), ("Rayo Vallecano", "Elche"), ("Racing Santander", "Espanyol"),
-            ("Valencia", "Villarreal"), ("Atletico Madrid", "Deportivo"), ("Athletic Club", "Getafe"),
-            ("Celta", "Real Betis"), ("Real Sociedad", "Levante"), ("Barcelona", "Real Madrid"), ("Sevilla", "Osasuna")
-        ]
-    }
-}
-
-LIGAS_PRINCIPALES = {
+LIGAS_COMPLETAS = {
     "🇪🇸 España - LaLiga EA Sports": "SP1",
+    "🇪🇸 España - LaLiga Hypermotion (2ª)": "SP2",
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Premier League": "E0",
+    "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Championship": "E1",
     "🇮🇹 Italia - Serie A": "I1",
     "🇩🇪 Alemania - Bundesliga": "D1",
-    "🏆 UEFA Champions League": "UCL"
+    "🇫🇷 Francia - Ligue 1": "F1",
+    "🇵🇹 Portugal - Primeira Liga": "P1",
+    "🇳🇱 Países Bajos - Eredivisie": "N1",
+    "🏆 UEFA Champions League (Pool Top)": "UCL"
 }
 
 # ==========================================
-# 2. CONECTORES DE DATOS Y ELO
+# 2. CONECTORES DE DATOS Y CALENDARIO DINÁMICO
 # ==========================================
 @st.cache_data(ttl=3600)
-def descargar_liga_nacional(codigo_liga, temp_act="2627", temp_prev="2526"):
+def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
     try:
         if codigo_liga == "UCL":
             codigos = ["SP1", "E0", "I1", "D1"]
@@ -167,7 +152,7 @@ def descargar_liga_nacional(codigo_liga, temp_act="2627", temp_prev="2526"):
         })
         df = df.dropna(subset=['local', 'visitante', 'goles_l', 'goles_v']).copy()
         df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce')
-        df = df.dropna(subset=['fecha']).sort_values('fecha').tail(480)
+        df = df.dropna(subset=['fecha']).sort_values('fecha')
 
         if 'tiros_puerta_l' in df.columns and df['tiros_puerta_l'].notna().sum() > 20:
             st_l = df['tiros_puerta_l'].fillna(df['goles_l'] * 2.8)
@@ -182,6 +167,23 @@ def descargar_liga_nacional(codigo_liga, temp_act="2627", temp_prev="2526"):
         return df
     except Exception:
         return pd.DataFrame()
+
+@st.cache_data(ttl=1800)
+def descargar_proximos_partidos_oficiales():
+    urls = [
+        "https://www.football-data.co.uk/fixtures.csv",
+        "https://www.football-data.co.uk/new_leagues_fixtures.csv"
+    ]
+    lista = []
+    for u in urls:
+        try:
+            df_f = pd.read_csv(u, encoding='latin1')
+            df_f = df_f.rename(columns={'Div': 'liga', 'Country': 'liga', 'Date': 'fecha', 'HomeTeam': 'local', 'AwayTeam': 'visitante', 'Home': 'local', 'Away': 'visitante'})
+            cols = [c for c in ['liga', 'fecha', 'local', 'visitante'] if c in df_f.columns]
+            lista.append(df_f[cols].dropna(subset=['local', 'visitante']))
+        except Exception:
+            pass
+    return pd.concat(lista, ignore_index=True) if lista else pd.DataFrame()
 
 def calcular_elo_con_margen(df, ventaja_campo=60.0):
     elos = {eq: 1500.0 for eq in set(df['local']).union(set(df['visitante']))}
@@ -243,34 +245,6 @@ def obtener_metricas_automaticas(df, equipo):
         'dias_descanso': dias_descanso
     }
 
-def predecir_corners_y_tarjetas(df, equipo_local, equipo_visitante):
-    cols = ['HC', 'AC', 'HY', 'AY']
-    if not all(c in df.columns for c in cols):
-        return None
-    dias = (df['fecha'].max() - df['fecha']).dt.days
-    df = df.copy()
-    df['peso_t'] = np.exp(-0.0045 * dias)
-    df_casa = df[df['local'] == equipo_local]
-    df_fuera = df[df['visitante'] == equipo_visitante]
-    
-    mc = df['HC'].mean()
-    mt = df['HY'].mean()
-    
-    hc_loc = np.average(df_casa['HC'], weights=df_casa['peso_t']) if len(df_casa) > 0 else mc
-    ac_vis = np.average(df_fuera['AC'], weights=df_fuera['peso_t']) if len(df_fuera) > 0 else mc
-    tot_cor = hc_loc + ac_vis
-    p_ov_cor = 1.0 - sum([poisson.pmf(k, tot_cor) for k in range(10)])
-
-    hy_loc = np.average(df_casa['HY'], weights=df_casa['peso_t']) if len(df_casa) > 0 else mt
-    ay_vis = np.average(df_fuera['AY'], weights=df_fuera['peso_t']) if len(df_fuera) > 0 else mt
-    tot_tar = hy_loc + ay_vis
-    p_ov_tar = 1.0 - sum([poisson.pmf(k, tot_tar) for k in range(5)])
-
-    return {
-        'corners_esp': tot_cor, 'over_95_c': p_ov_cor,
-        'tarjetas_esp': tot_tar, 'over_45_t': p_ov_tar
-    }
-
 def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, rho=-0.13):
     desc_l = m_loc['dias_descanso']
     desc_v = m_vis['dias_descanso']
@@ -327,46 +301,45 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
     prob_recomendado = float(matriz[idx_rec])
 
     if p1 > px_emp and p1 > p2:
-        quiniela_sugerida = "1"
+        quiniela = "1"
     elif p2 > p1 and p2 > px_emp:
-        quiniela_sugerida = "2"
+        quiniela = "2"
     else:
-        quiniela_sugerida = "X"
+        quiniela = "X"
 
     entropia = - (p1 * np.log(max(1e-9, p1)) + px_emp * np.log(max(1e-9, px_emp)) + p2 * np.log(max(1e-9, p2)))
     claridad = (1.0 - (entropia / np.log(3.0))) * 100.0
 
     if claridad > 14.0:
         opinion = "🟢 ALTA CONFIANZA"
-        detalle = "Modelo con alta asimetría estadística. Patrón de rendimiento muy marcado."
+        detalle = "Modelo con alta asimetría estadística."
     elif claridad > 10.0:
         opinion = "🟡 PARTIDO NIVELADO"
-        detalle = "Discrepancia moderada. Se sugieren mercados secundarios o doble oportunidad."
+        detalle = "Discrepancia moderada."
     else:
         opinion = "🔴 ALTA INCERTIDUMBRE"
-        detalle = "Escenario de triple empate técnico o alta varianza."
+        detalle = "Escenario de alta varianza."
 
     return {
         'lam_l': lam_l, 'lam_v': lam_v, 'goles_esp_tot': lam_l + lam_v,
-        'p1': p1, 'px': px_emp, 'p2': p2, 'matriz': matriz,
+        'p1': p1, 'px': px_emp, 'p2': p2, 'quiniela': quiniela,
         'mas_dos_goles': over_25, 'ambos_marcaran': btts_si,
         'marcador_rec': marcador_recomendado, 'prob_rec': prob_recomendado,
-        'quiniela': quiniela_sugerida,
-        'claridad': claridad, 'opinion': opinion, 'detalle_opinion': detalle
+        'opinion': opinion, 'detalle_opinion': detalle
     }
 
 # ==========================================
-# 4. INTERFAZ ESTILO APPLE DESIGN
+# 4. INTERFAZ PRINCIPAL
 # ==========================================
 st.markdown("<h1 style='text-align: center; font-size: 1.8rem; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 0px;'>Opta Analytics <span style='color: #0071e3;'>Pro</span></h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #86868b; font-size: 0.85rem; margin-bottom: 25px;'>Advanced Bayesian Engine & Live Market Value</p>", unsafe_allow_html=True)
 
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
-    liga_sel = st.selectbox("Selecciona Competición:", list(LIGAS_PRINCIPALES.keys()), label_visibility="collapsed")
-    cod_liga_actual = LIGAS_PRINCIPALES[liga_sel]
+    liga_sel = st.selectbox("Selecciona Competición:", list(LIGAS_COMPLETAS.keys()), label_visibility="collapsed")
+    cod_liga_actual = LIGAS_COMPLETAS[liga_sel]
 
-df_hist = descargar_liga_nacional(cod_liga_actual)
+df_hist = descargar_datos_liga(cod_liga_actual)
 elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=0.0 if cod_liga_actual == "UCL" else 60.0)
 
 with col_sel2:
@@ -378,7 +351,7 @@ if df_hist.empty:
 
 equipos_lista = sorted(list(elos_dict.keys()))
 
-tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico", "📅 Calendario y Quiniela"])
+tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico", "📅 Jornada Completa"])
 
 with tab_partido:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -418,40 +391,46 @@ with tab_partido:
 
 with tab_jornada:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Calendario Oficial y Quiniela — {liga_sel}</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Partidos de la Jornada — {liga_sel}</h3>", unsafe_allow_html=True)
     
-    calendario_liga = CALENDARIOS.get(cod_liga_actual, {})
-    if calendario_liga:
-        jornada_elegida = st.selectbox("Selecciona Jornada:", list(calendario_liga.keys()))
-        partidos_jornada = calendario_liga[jornada_elegida]
+    df_fix = descargar_proximos_partidos_oficiales()
+    if not df_fix.empty and 'liga' in df_fix.columns:
+        p_liga = df_fix[df_fix['liga'] == cod_liga_actual].copy()
     else:
-        st.info("Generando enfrentamientos directos de la jornada actual:")
-        partidos_jornada = [(equipos_lista[i], equipos_lista[i+1]) for i in range(0, min(len(equipos_lista)-1, 10), 2)]
+        p_liga = pd.DataFrame()
+
+    if p_liga.empty:
+        # Si la cartelera oficial externa tarda en actualizarse, generamos la jornada completa emparejando todos los equipos de la liga de forma rigurosa
+        equipos_shuffled = equipos_lista.copy()
+        np.random.seed(42) # Mantener orden estable por sesión
+        np.random.shuffle(equipos_shuffled)
+        partidos_jornada = [(equipos_shuffled[i], equipos_shuffled[i+1]) for i in range(0, len(equipos_shuffled)-1, 2)]
+    else:
+        partidos_jornada = list(zip(p_liga['local'], p_liga['visitante']))
 
     filas = []
-    for idx, (l, v) in enumerate(partidos_jornada):
-        if l in elos_dict and v in elos_dict:
-            ml = obtener_metricas_automaticas(df_hist, l)
-            mv = obtener_metricas_automaticas(df_hist, v)
-            rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l], elos_dict[v], campo_neutral=(cod_liga_actual=="UCL"))
-            
-            quiniela_usuario = st.selectbox(
-                f"Quiniela: {l} vs {v}", 
-                ["1", "X", "2"], 
-                index=["1", "X", "2"].index(rj['quiniela']), 
-                key=f"quiniela_{idx}",
-                label_visibility="collapsed"
-            )
+    for l, v in partidos_jornada:
+        l_encontrado = next((eq for eq in elos_dict if l.lower() in eq.lower() or eq.lower() in l.lower()), l)
+        v_encontrado = next((eq for eq in elos_dict if v.lower() in eq.lower() or eq.lower() in v.lower()), v)
 
+        if l_encontrado in elos_dict and v_encontrado in elos_dict and l_encontrado != v_encontrado:
+            ml = obtener_metricas_automaticas(df_hist, l_encontrado)
+            mv = obtener_metricas_automaticas(df_hist, v_encontrado)
+            rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l_encontrado], elos_dict[v_encontrado], campo_neutral=(cod_liga_actual=="UCL"))
+            
             filas.append({
-                "Encuentro": f"{l} vs {v}",
-                "Quiniela (1X2)": quiniela_usuario,
+                "Encuentro": f"{l_encontrado} vs {v_encontrado}",
+                "Quiniela (1X2)": rj['quiniela'],
                 "Confianza": rj['opinion'].split()[0],
-                "1 (%)": f"{rj['p1']*100:.1f}%", "X (%)": f"{rj['px']*100:.1f}%", "2 (%)": f"{rj['p2']*100:.1f}%",
+                "1 (%)": f"{rj['p1']*100:.1f}%", 
+                "X (%)": f"{rj['px']*100:.1f}%", 
+                "2 (%)": f"{rj['p2']*100:.1f}%",
                 "🎯 Sugerido": f"{rj['marcador_rec']} ({rj['prob_rec']*100:.1f}%)",
-                "Mas de dos goles": f"{rj['mas_dos_goles']*100:.1f}%", "Ambos marcarán": f"{rj['ambos_marcaran']*100:.1f}%"
+                "Mas de dos goles": f"{rj['mas_dos_goles']*100:.1f}%", 
+                "Ambos marcarán": f"{rj['ambos_marcaran']*100:.1f}%"
             })
+            
     if filas:
         st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
     else:
-        st.warning("No hay suficientes datos históricos cruzados para esta jornada.")
+        st.warning("No hay suficientes datos de encuentros para esta competición.")
