@@ -65,6 +65,7 @@ st.markdown("""
         font-weight: 500;
     }
 
+    /* Pestañas estilo Apple Segmented Control */
     .stTabs [data-baseweb="tab-list"] {
         gap: 6px;
         background-color: rgba(28, 28, 30, 0.6);
@@ -104,7 +105,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO OFICIAL DE LIGAS AISLADAS
+# 1. CATÁLOGO OFICIAL Y AISLADO DE LIGAS
 # ==========================================
 LIGAS_OFICIALES = {
     "🇪🇸 España - LaLiga EA Sports (1ª)": "SP1",
@@ -119,7 +120,7 @@ LIGAS_OFICIALES = {
 }
 
 # ==========================================
-# 2. CONECTOR DE DATOS ESTRICTO
+# 2. CONECTOR DE DATOS BLINDADO
 # ==========================================
 @st.cache_data(ttl=3600)
 def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
@@ -152,6 +153,24 @@ def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
         df = df.dropna(subset=['local', 'visitante', 'goles_l', 'goles_v']).copy()
         df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce')
         df = df.dropna(subset=['fecha']).sort_values('fecha')
+
+        # Aislar rigurosamente Primera y Segunda división española
+        if codigo_liga == "SP1":
+            equipos_primera = [
+                "Alaves", "Athletic Club", "Atletico Madrid", "Barcelona", "Celta", 
+                "Elche", "Espanyol", "Getafe", "Girona", "Levante", "Mallorca", 
+                "Osasuna", "Rayo Vallecano", "Real Betis", "Real Madrid", "Real Sociedad", 
+                "Sevilla", "Valencia", "Valladolid", "Villarreal"
+            ]
+            df = df[df['local'].isin(equipos_primera) & df['visitante'].isin(equipos_primera)]
+        elif codigo_liga == "SP2":
+            equipos_primera = [
+                "Alaves", "Athletic Club", "Atletico Madrid", "Barcelona", "Celta", 
+                "Elche", "Espanyol", "Getafe", "Girona", "Levante", "Mallorca", 
+                "Osasuna", "Rayo Vallecano", "Real Betis", "Real Madrid", "Real Sociedad", 
+                "Sevilla", "Valencia", "Valladolid", "Villarreal"
+            ]
+            df = df[~df['local'].isin(equipos_primera) & ~df['visitante'].isin(equipos_primera)]
 
         if 'tiros_puerta_l' in df.columns and df['tiros_puerta_l'].notna().sum() > 20:
             st_l = df['tiros_puerta_l'].fillna(df['goles_l'] * 2.8)
@@ -311,7 +330,7 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
     }
 
 # ==========================================
-# 4. INTERFAZ PRINCIPAL (DISEÑO APPLE PRO)
+# 4. INTERFAZ PRINCIPAL (ANÁLISIS + CUADRO RESUMEN)
 # ==========================================
 st.markdown("<h1 style='text-align: center; font-size: 1.8rem; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 0px;'>Opta Analytics <span style='color: #0071e3;'>Pro</span></h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #86868b; font-size: 0.85rem; margin-bottom: 25px;'>Advanced Bayesian Engine & Live Market Value</p>", unsafe_allow_html=True)
@@ -333,37 +352,80 @@ if df_hist.empty:
 
 equipos_lista = sorted(list(elos_dict.keys()))
 
-st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-c_eq1, c_vs, c_eq2 = st.columns([2, 0.4, 2])
-with c_eq1:
-    eq_local = st.selectbox("Local:", equipos_lista, index=0)
-with c_vs:
-    st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
-with c_eq2:
-    eq_visit = st.selectbox("Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
+# Pestañas principales (Análisis Táctico + Cuadro Resumen de Jornada)
+tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico Individual", "📅 Cuadro Resumen de Jornada"])
 
-m_loc = obtener_metricas_automaticas(df_hist, eq_local)
-m_vis = obtener_metricas_automaticas(df_hist, eq_visit)
-elo_l_val = elos_dict.get(eq_local, 1500.0)
-elo_v_val = elos_dict.get(eq_visit, 1500.0)
+with tab_partido:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    c_eq1, c_vs, c_eq2 = st.columns([2, 0.4, 2])
+    with c_eq1:
+        eq_local = st.selectbox("Local:", equipos_lista, index=0)
+    with c_vs:
+        st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
+    with c_eq2:
+        eq_visit = st.selectbox("Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
 
-res = ejecutar_modelo_analitico(m_loc, m_vis, elo_l_val, elo_v_val, campo_neutral=campo_neutral)
+    m_loc = obtener_metricas_automaticas(df_hist, eq_local)
+    m_vis = obtener_metricas_automaticas(df_hist, eq_visit)
+    elo_l_val = elos_dict.get(eq_local, 1500.0)
+    elo_v_val = elos_dict.get(eq_visit, 1500.0)
 
-st.markdown(f"""
-<div style="background: rgba(28, 28, 30, 0.6); backdrop-filter: blur(10px); border-left: 4px solid {'#34c759' if '🟢' in res['opinion'] else ('#ff9f0a' if '🟡' in res['opinion'] else '#ff453a')}; padding: 14px 18px; border-radius: 12px; margin: 20px 0;">
-    <div style="font-weight: 600; font-size: 0.9rem; color: #f5f5f7; margin-bottom: 3px;">{res['opinion']}</div>
-    <div style="color: #86868b; font-size: 0.8rem;">{res['detalle_opinion']}</div>
-</div>
-""", unsafe_allow_html=True)
+    res = ejecutar_modelo_analitico(m_loc, m_vis, elo_l_val, elo_v_val, campo_neutral=campo_neutral)
 
-m1, m2, m3, m4, m5 = st.columns(5)
-with m1:
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">1 - {eq_local}</div><div class="metric-value">{res['p1']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p1']:.2f}</div></div>""", unsafe_allow_html=True)
-with m2:
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">X - Empate</div><div class="metric-value">{res['px']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['px']:.2f}</div></div>""", unsafe_allow_html=True)
-with m3:
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">2 - {eq_visit}</div><div class="metric-value">{res['p2']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p2']:.2f}</div></div>""", unsafe_allow_html=True)
-with m4:
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">Mas de dos goles</div><div class="metric-value">{res['mas_dos_goles']*100:.1f}%</div><div class="metric-sub">λ: {res['goles_esp_tot']:.2f}</div></div>""", unsafe_allow_html=True)
-with m5:
-    st.markdown(f"""<div class="metric-card"><div class="metric-label">Ambos marcarán</div><div class="metric-value">{res['ambos_marcaran']*100:.1f}%</div><div class="metric-sub">BTTS Ratio</div></div>""", unsafe_allow_html=True)
+    # Banner de Opinión
+    st.markdown(f"""
+    <div style="background: rgba(28, 28, 30, 0.6); backdrop-filter: blur(10px); border-left: 4px solid {'#34c759' if '🟢' in res['opinion'] else ('#ff9f0a' if '🟡' in res['opinion'] else '#ff453a')}; padding: 14px 18px; border-radius: 12px; margin: 20px 0;">
+        <div style="font-weight: 600; font-size: 0.9rem; color: #f5f5f7; margin-bottom: 3px;">{res['opinion']}</div>
+        <div style="color: #86868b; font-size: 0.8rem;">{res['detalle_opinion']}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Cuadro de Estadísticas / Tarjetas Principales
+    m1, m2, m3, m4, m5 = st.columns(5)
+    with m1:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">1 - {eq_local}</div><div class="metric-value">{res['p1']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p1']:.2f}</div></div>""", unsafe_allow_html=True)
+    with m2:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">X - Empate</div><div class="metric-value">{res['px']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['px']:.2f}</div></div>""", unsafe_allow_html=True)
+    with m3:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">2 - {eq_visit}</div><div class="metric-value">{res['p2']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p2']:.2f}</div></div>""", unsafe_allow_html=True)
+    with m4:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Mas de dos goles</div><div class="metric-value">{res['mas_dos_goles']*100:.1f}%</div><div class="metric-sub">λ: {res['goles_esp_tot']:.2f}</div></div>""", unsafe_allow_html=True)
+    with m5:
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Ambos marcarán</div><div class="metric-value">{res['ambos_marcaran']*100:.1f}%</div><div class="metric-sub">BTTS Ratio</div></div>""", unsafe_allow_html=True)
+
+with tab_jornada:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Cuadro Resumen de Jornada — {liga_sel}</h3>", unsafe_allow_html=True)
+    
+    # Generador limpio y realista de duelos cruzados para el cuadro resumen
+    num_eq = len(equipos_lista)
+    if num_eq >= 4:
+        pares_jornada = []
+        for i in range(0, num_eq - 1, 2):
+            pares_jornada.append((equipos_lista[i], equipos_lista[i+1]))
+            
+        filas_resumen = []
+        for l, v in pares_jornada:
+            if l in elos_dict and v in elos_dict and l != v:
+                ml = obtener_metricas_automaticas(df_hist, l)
+                mv = obtener_metricas_automaticas(df_hist, v)
+                rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l], elos_dict[v], campo_neutral=(cod_liga_actual=="UCL"))
+                
+                filas_resumen.append({
+                    "Encuentro": f"{l} vs {v}",
+                    "Quiniela (1X2)": rj['quiniela'],
+                    "Confianza": rj['opinion'].split()[0],
+                    "1 (%)": f"{rj['p1']*100:.1f}%", 
+                    "X (%)": f"{rj['px']*100:.1f}%", 
+                    "2 (%)": f"{rj['p2']*100:.1f}%",
+                    "🎯 Sugerido": f"{rj['marcador_rec']} ({rj['prob_rec']*100:.1f}%)",
+                    "Más de dos goles": f"{rj['mas_dos_goles']*100:.1f}%", 
+                    "Ambos marcarán": f"{rj['ambos_marcaran']*100:.1f}%"
+                })
+        
+        if filas_resumen:
+            st.dataframe(pd.DataFrame(filas_resumen), use_container_width=True, hide_index=True)
+        else:
+            st.warning("No hay suficientes datos para generar el cuadro resumen.")
+    else:
+        st.info("No hay suficientes equipos registrados en esta competición.")
