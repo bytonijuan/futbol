@@ -6,7 +6,71 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="Predictor Pro: Modelo Bayesiano Dixon-Coles", page_icon="⚽", layout="wide")
+# Configuración inicial de la página
+st.set_page_config(
+    page_title="Predictor Pro | Analytics", 
+    page_icon="⚽", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ==========================================
+# ESTILOS CSS PREMIUM (Modo Oscuro / Deportivo)
+# ==========================================
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #0e1117;
+        color: #f0f2f6;
+    }
+    div[data-testid="stMetric"] {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        transition: transform 0.2s ease;
+    }
+    div[data-testid="stMetric"]:hover {
+        border-color: #58a6ff;
+        transform: translateY(-2px);
+    }
+    div[data-testid="stMetric"] label {
+        color: #8b949e !important;
+        font-size: 0.85rem !important;
+    }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+        color: #f0f6fc !important;
+        font-size: 1.3rem !important;
+        font-weight: 700;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #161b22;
+        padding: 6px;
+        border-radius: 10px;
+        border: 1px solid #30363d;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: transparent;
+        color: #8b949e;
+        border-radius: 6px;
+        font-weight: 600;
+        padding: 10px 20px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #238636 !important;
+        color: #ffffff !important;
+    }
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+            padding-top: 2rem;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # 1. CATÁLOGO DE COMPETICIONES MUNDIALES
@@ -15,13 +79,13 @@ TORNEOS_INTERNACIONALES_CLUBES = {
     "🏆 UEFA Champions League": "UCL",
     "🟠 UEFA Europa League": "UEL",
     "🟢 UEFA Conference League": "UECL",
-    "🌎 CONMEBOL Copa Libertadores / Mundial de Clubes": "LIB"
+    "🌎 CONMEBOL Copa Libertadores": "LIB"
 }
 
 TORNEOS_SELECCIONES = {
     "🌍 Mundial FIFA / Clasificatorios": "WC",
     "🇪🇺 Eurocopa / UEFA Nations League": "EURO",
-    "🏆 Copa América / CONMEBOL": "CA"
+    "🏆 Copa América": "CA"
 }
 
 LIGAS_PRINCIPALES = {
@@ -53,7 +117,7 @@ LIGAS_EXTRA_MUNDO = {
 }
 
 # ==========================================
-# 2. CONECTORES DE DATOS Y ELO DINÁMICO
+# 2. CONECTORES DE DATOS Y ELO
 # ==========================================
 @st.cache_data(ttl=3600)
 def cargar_club_elo_vivo():
@@ -172,7 +236,7 @@ def calcular_elo_con_margen(df, ventaja_campo=60.0):
     return elos
 
 # ==========================================
-# 3. MOTOR ESTADÍSTICO Y CÓRNERS/TARJETAS
+# 3. MOTOR ESTADÍSTICO Y OPINIÓN DE APUESTA
 # ==========================================
 def obtener_metricas_fiables(df, equipo, elos_dict):
     df = df.copy()
@@ -253,7 +317,7 @@ def predecir_corners_y_tarjetas(df, equipo_local, equipo_visitante):
         'tarjetas_esp': tot_tar, 'over_45_t': p_ov_tar
     }
 
-def ejecutar_modelo_completo(m_loc, m_vis, elo_l, elo_v, forma_l, forma_v, bajas_l, bajas_v, desc_l, desc_v, campo_neutral=False, rho=-0.13):
+def ejecutar_modelo_completo(m_loc, m_vis, elo_l, elo_v, forma_l, forma_v, bajas_l, bajas_v, desc_l, desc_v, cuota_1, cuota_x, cuota_2, campo_neutral=False, rho=-0.13):
     if campo_neutral:
         med_comun = (m_loc['media_l'] + m_loc['media_v']) / 2.0
         at_l = (m_loc['at_casa'] + m_loc['at_fuera']) / 2.0
@@ -265,7 +329,7 @@ def ejecutar_modelo_completo(m_loc, m_vis, elo_l, elo_v, forma_l, forma_v, bajas
         bono_elo = 0.0
     else:
         lam_base_l = m_loc['at_casa'] * m_vis['def_fuera'] * m_loc['media_l']
-        lam_base_v = m_vis['at_fuera'] * m_loc['def_casa'] * m_vis['media_v']
+        lam_base_v = m_vis['at_fuera'] * m_vis['def_casa'] * m_vis['media_v']
         bono_elo = 60.0
 
     delta_elo = (elo_l + bono_elo - elo_v) / 400.0
@@ -293,49 +357,43 @@ def ejecutar_modelo_completo(m_loc, m_vis, elo_l, elo_v, forma_l, forma_v, bajas
     px_emp = float(np.sum(np.diag(matriz)))
     p2 = float(np.sum(np.triu(matriz, 1)))
 
-    dc_1x = p1 + px_emp
-    dc_x2 = p2 + px_emp
-    dnb_1 = p1 / (p1 + p2)
-    dnb_2 = p2 / (p1 + p2)
-
     goles_totales = np.add.outer(range(max_g), range(max_g))
-    over_15 = float(matriz[goles_totales > 1.5].sum())
     over_25 = float(matriz[goles_totales > 2.5].sum())
-    over_35 = float(matriz[goles_totales > 3.5].sum())
 
     cs_local = float(matriz[:, 0].sum())
     cs_visit = float(matriz[0, :].sum())
     btts_no = cs_local + cs_visit - float(matriz[0, 0])
     btts_si = 1.0 - btts_no
 
-    idx_moda = np.unravel_index(np.argmax(matriz), matriz.shape)
-    marcador_moda = f"{idx_moda[0]} - {idx_moda[1]}"
-    prob_moda = float(matriz[idx_moda])
-
-    if p1 >= 0.48 and p1 > p2:
-        mat_sub = np.tril(matriz, -1)
-    elif p2 >= 0.48 and p2 > p1:
-        mat_sub = np.triu(matriz, 1)
-    elif abs(p1 - p2) < 0.12 or px_emp >= 0.30:
-        mat_sub = np.diag( np.diag(matriz) )
-    else:
-        mat_sub = matriz
-    idx_rec = np.unravel_index(np.argmax(mat_sub), mat_sub.shape)
+    idx_rec = np.unravel_index(np.argmax(matriz), matriz.shape)
     marcador_recomendado = f"{idx_rec[0]} - {idx_rec[1]}"
     prob_recomendado = float(matriz[idx_rec])
 
     entropia = - (p1 * np.log(max(1e-9, p1)) + px_emp * np.log(max(1e-9, px_emp)) + p2 * np.log(max(1e-9, p2)))
     claridad = (1.0 - (entropia / np.log(3.0))) * 100.0
 
+    # --- ALGORITMO DE OPINIÓN DE APUESTA (¿Merece la pena arriesgar?) ---
+    ev1 = (p1 * cuota_1) - 1.0
+    evx = (px_emp * cuota_x) - 1.0
+    ev2 = (p2 * cuota_2) - 1.0
+    max_ev = max(ev1, evx, ev2)
+
+    if claridad > 14.0 and max_ev > 0.04:
+        opinion = "🟢 ALTO VALOR (Recomendado)"
+        detalle = "El modelo detecta una clara asimetría competitiva combinada con cuotas ineficientes. Merece la pena buscar la opción con EV+."
+    elif claridad > 10.0 and max_ev > 0.0:
+        opinion = "🟡 MODERADO (Precaución)"
+        detalle = "Hay ligera ventaja matemática, pero el partido tiene tramos de incertidumbre. Se aconseja reducir el stake o usar Doble Oportunidad."
+    else:
+        opinion = "🔴 EVITAR / PARTIDO TRAMPA"
+        detalle = "Las probabilidades están muy equilibradas o las cuotas no compensan el riesgo. Es mejor no arriesgar capital en este encuentro."
+
     return {
         'lam_l': lam_l, 'lam_v': lam_v, 'goles_esp_tot': lam_l + lam_v,
         'p1': p1, 'px': px_emp, 'p2': p2, 'matriz': matriz,
-        'dc_1x': dc_1x, 'dc_x2': dc_x2, 'dnb_1': dnb_1, 'dnb_2': dnb_2,
-        'over_15': over_15, 'over_25': over_25, 'over_35': over_35,
-        'btts_si': btts_si, 'btts_no': btts_no, 'cs_l': cs_local, 'cs_v': cs_visit,
-        'marcador_moda': marcador_moda, 'prob_moda': prob_moda,
+        'mas_dos_goles': over_25, 'ambos_marcaran': btts_si,
         'marcador_rec': marcador_recomendado, 'prob_rec': prob_recomendado,
-        'claridad': claridad
+        'claridad': claridad, 'opinion': opinion, 'detalle_opinion': detalle
     }
 
 def evaluar_ev_kelly(prob_modelo, cuota_casa, fraccion_kelly, bankroll):
@@ -348,18 +406,20 @@ def evaluar_ev_kelly(prob_modelo, cuota_casa, fraccion_kelly, bankroll):
     return ev * 100.0, stake_pct * 100.0, bankroll * stake_pct
 
 # ==========================================
-# 4. INTERFAZ PRINCIPAL
+# 4. INTERFAZ DE USUARIO PREMIUM
 # ==========================================
-st.title("⚽ Predictor Estadístico Profesional (Bayesiano + Dixon-Coles)")
+st.markdown("<h2 style='text-align: center; color: #58a6ff;'>⚽ ELITE FOOTBALL ANALYTICS</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #8b949e;'>Modelo Bayesiano de Probabilidad & Valor Esperado (EV+)</p>", unsafe_allow_html=True)
+st.markdown("---")
 
 col_cat, col_comp, col_neutral = st.columns([1.1, 1.5, 0.9])
 
 with col_cat:
     categoria = st.selectbox(
-        "1️⃣ Categoría:",
-        ["🏟️ Ligas Nacionales (Europa, América y Asia)",
-         "🏆 Copas Internacionales de Clubes (Champions, Libertadores...)",
-         "🌍 Selecciones Nacionales (Mundial, Eurocopa, Copa América)"]
+        "Categoría:",
+        ["🏟️ Ligas Nacionales",
+         "🏆 Copas Internacionales",
+         "🌍 Selecciones Nacionales"]
     )
 
 es_neutral_default = False
@@ -367,7 +427,7 @@ cod_liga_actual = None
 
 if "Copas Internacionales" in categoria:
     with col_comp:
-        torneo_sel = st.selectbox("2️⃣ Selecciona Competición:", list(TORNEOS_INTERNACIONALES_CLUBES.keys()))
+        torneo_sel = st.selectbox("Competición:", list(TORNEOS_INTERNACIONALES_CLUBES.keys()))
         cod_torneo = TORNEOS_INTERNACIONALES_CLUBES[torneo_sel]
     df_hist = cargar_pool_internacional_clubes(cod_torneo)
     elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=60.0)
@@ -379,20 +439,19 @@ if "Copas Internacionales" in categoria:
                 elos_dict[eq] = mapa_clubelo[eq]
 elif "Selecciones Nacionales" in categoria:
     with col_comp:
-        torneo_sel = st.selectbox("2️⃣ Selecciona Competición:", list(TORNEOS_SELECCIONES.keys()))
+        torneo_sel = st.selectbox("Competición:", list(TORNEOS_SELECCIONES.keys()))
     df_hist = descargar_selecciones_nacionales()
     elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=40.0)
     es_neutral_default = True
 else:
     TODAS_LIGAS = {**LIGAS_PRINCIPALES, **LIGAS_EXTRA_MUNDO}
     with col_comp:
-        torneo_sel = st.selectbox("2️⃣ Selecciona Liga Doméstica:", list(TODAS_LIGAS.keys()))
+        torneo_sel = st.selectbox("Competición:", list(TODAS_LIGAS.keys()))
         cod_liga_actual = TODAS_LIGAS[torneo_sel]
     df_hist = descargar_liga_nacional(cod_liga_actual)
     elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=60.0)
 
 with col_neutral:
-    st.write("")
     st.write("")
     campo_neutral = st.checkbox("🏟️ Sede Neutral", value=es_neutral_default)
 
@@ -401,16 +460,14 @@ if df_hist.empty:
     st.stop()
 
 equipos_lista = sorted(list(elos_dict.keys()))
-tab_partido, tab_jornada = st.tabs(["🔍 Análisis de Partido + Kelly", "📋 Pronóstico de Jornada"])
+tab_partido, tab_jornada = st.tabs(["🔍 Análisis de Partido & Kelly", "📋 Pronóstico de Jornada"])
 
 with tab_partido:
     c_eq1, c_eq2 = st.columns(2)
     with c_eq1:
-        idx1 = equipos_lista.index("Alaves") if "Alaves" in equipos_lista else 0
-        eq_local = st.selectbox("Local:", equipos_lista, index=idx1)
+        eq_local = st.selectbox("Local:", equipos_lista, index=0)
     with c_eq2:
-        idx2 = equipos_lista.index("Real Madrid") if "Real Madrid" in equipos_lista else min(1, len(equipos_lista)-1)
-        eq_visit = st.selectbox("Visitante:", equipos_lista, index=idx2)
+        eq_visit = st.selectbox("Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
 
     m_loc = obtener_metricas_fiables(df_hist, eq_local, elos_dict)
     m_vis = obtener_metricas_fiables(df_hist, eq_visit, elos_dict)
@@ -428,43 +485,45 @@ with tab_partido:
     bajas_v_ui = st.sidebar.slider(f"Bajas {eq_visit} (% xG)", 0, 40, 0, 5) / 100.0
     desc_v_ui = st.sidebar.number_input(f"Descanso {eq_visit} días", 1, 14, 4)
 
-    res = ejecutar_modelo_completo(
-        m_loc, m_vis, elo_l_val, elo_v_val,
-        forma_l_ui, forma_v_ui, bajas_l_ui, bajas_v_ui,
-        desc_l_ui, desc_v_ui, campo_neutral=campo_neutral
-    )
-
     st.sidebar.markdown("---")
-    st.sidebar.header("💰 Cuotas y Kelly")
-    cuota_1 = st.sidebar.number_input(f"Cuota 1", 1.01, 100.0, round(max(1.05, (1/res['p1'])*0.95), 2), 0.05)
-    cuota_x = st.sidebar.number_input(f"Cuota X", 1.01, 100.0, round(max(1.05, (1/res['px'])*0.95), 2), 0.05)
-    cuota_2 = st.sidebar.number_input(f"Cuota 2", 1.01, 100.0, round(max(1.05, (1/res['p2'])*0.95), 2), 0.05)
+    st.sidebar.header("💰 Cuotas y Gestión")
+    cuota_1 = st.sidebar.number_input(f"Cuota 1", 1.01, 100.0, 2.10, 0.05)
+    cuota_x = st.sidebar.number_input(f"Cuota X", 1.01, 100.0, 3.40, 0.05)
+    cuota_2 = st.sidebar.number_input(f"Cuota 2", 1.01, 100.0, 3.50, 0.05)
     bankroll = st.sidebar.number_input("Bankroll (€)", 10.0, 1000000.0, 1000.0, 50.0)
     frac_kelly = st.sidebar.selectbox("Kelly", [0.25, 0.50, 1.00], index=0, format_func=lambda x: f"Kelly {int(x*100)}%")
 
-    st.markdown("---")
-    signo_rec = f"Victoria {eq_local} (1)" if res['p1'] > max(res['px'], res['p2']) else (f"Victoria {eq_visit} (2)" if res['p2'] > max(res['p1'], res['px']) else "Empate (X)")
-    st.success(
-        f"🎯 **VEREDICTO:** Tendencia principal **{signo_rec}** | "
-        f"**Resultado Sugerido:** `{eq_local} {res['marcador_rec']} {eq_visit}` ({res['prob_rec']*100:.1f}%) | "
-        f"**Goles Totales Esp:** `{res['goles_esp_tot']:.2f}`"
+    res = ejecutar_modelo_completo(
+        m_loc, m_vis, elo_l_val, elo_v_val,
+        forma_l_ui, forma_v_ui, bajas_l_ui, bajas_v_ui,
+        desc_l_ui, desc_v_ui, cuota_1, cuota_x, cuota_2, campo_neutral=campo_neutral
     )
 
+    st.markdown("---")
+    
+    # --- BLOQUE DE OPINIÓN DE APUESTA ---
+    if "🟢" in res['opinion']:
+        st.success(f"🧠 **OPINIÓN DE APUESTA — {res['opinion']}**\n\n{res['detalle_opinion']}")
+    elif "🟡" in res['opinion']:
+        st.warning(f"🧠 **OPINIÓN DE APUESTA — {res['opinion']}**\n\n{res['detalle_opinion']}")
+    else:
+        st.error(f"🧠 **OPINIÓN DE APUESTA — {res['opinion']}**\n\n{res['detalle_opinion']}")
+
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric(f"1 - {eq_local}", f"{res['p1']*100:.1f}%", f"Cuota Justa: {1/res['p1']:.2f}")
-    k2.metric("X - Empate", f"{res['px']*100:.1f}%", f"Cuota Justa: {1/res['px']:.2f}")
-    k3.metric(f"2 - {eq_visit}", f"{res['p2']*100:.1f}%", f"Cuota Justa: {1/res['p2']:.2f}")
-    k4.metric(f"λ Local / Visit", f"{res['lam_l']:.2f} - {res['lam_v']:.2f}", f"DNB 1: {res['dnb_1']*100:.1f}%")
-    k5.metric("Claridad", f"{res['claridad']:.1f} / 100")
+    k1.metric(f"1 - {eq_local}", f"{res['p1']*100:.1f}%", f"Justa: {1/res['p1']:.2f}")
+    k2.metric("X - Empate", f"{res['px']*100:.1f}%", f"Justa: {1/res['px']:.2f}")
+    k3.metric(f"2 - {eq_visit}", f"{res['p2']*100:.1f}%", f"Justa: {1/res['p2']:.2f}")
+    k4.metric("Mas de dos goles", f"{res['mas_dos_goles']*100:.1f}%", f"Cuota: {1/res['mas_dos_goles']:.2f}")
+    k5.metric("Ambos equipos marcarán", f"{res['ambos_marcaran']*100:.1f}%", f"Cuota: {1/res['ambos_marcaran']:.2f}")
 
     # Córners y Tarjetas
     res_disc = predecir_corners_y_tarjetas(df_hist, eq_local, eq_visit)
     if res_disc:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Córners Esperados", f"{res_disc['corners_esp']:.1f}")
-        c2.metric("Prob. Over 9.5 Córners", f"{res_disc['over_95_c']*100:.1f}%")
+        c2.metric("Over 9.5 Córners", f"{res_disc['over_95_c']*100:.1f}%")
         c3.metric("Tarjetas Esperadas", f"{res_disc['tarjetas_esp']:.1f}")
-        c4.metric("Prob. Over 4.5 Tarjetas", f"{res_disc['over_45_t']*100:.1f}%")
+        c4.metric("Over 4.5 Tarjetas", f"{res_disc['over_45_t']*100:.1f}%")
 
     # Detector EV+
     st.markdown("### 💎 Valor Esperado (EV+) y Kelly")
@@ -493,12 +552,13 @@ with tab_jornada:
         if l in elos_dict and v in elos_dict:
             ml = obtener_metricas_fiables(df_hist, l, elos_dict)
             mv = obtener_metricas_fiables(df_hist, v, elos_dict)
-            rj = ejecutar_modelo_completo(ml, mv, elos_dict[l], elos_dict[v], ml['forma'], mv['forma'], 0.0, 0.0, 6, 6, campo_neutral=campo_neutral)
+            rj = ejecutar_modelo_completo(ml, mv, elos_dict[l], elos_dict[v], ml['forma'], mv['forma'], 0.0, 0.0, 6, 6, 2.0, 3.3, 3.5, campo_neutral=campo_neutral)
             filas.append({
                 "Encuentro": f"{l} vs {v}",
+                "Opinión": rj['opinion'].split()[0],
                 "1 (%)": f"{rj['p1']*100:.1f}%", "X (%)": f"{rj['px']*100:.1f}%", "2 (%)": f"{rj['p2']*100:.1f}%",
-                "🎯 Resultado Sugerido": f"{rj['marcador_rec']} ({rj['prob_rec']*100:.1f}%)",
-                "Over 2.5": f"{rj['over_25']*100:.1f}%", "BTTS": f"{rj['btts_si']*100:.1f}%"
+                "🎯 Sugerido": f"{rj['marcador_rec']} ({rj['prob_rec']*100:.1f}%)",
+                "Mas de dos goles": f"{rj['mas_dos_goles']*100:.1f}%", "Ambos equipos marcarán": f"{rj['ambos_marcaran']*100:.1f}%"
             })
     if filas:
         st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
