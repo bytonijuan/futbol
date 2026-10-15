@@ -94,50 +94,87 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO DE LIGAS
+# 1. CALENDARIOS OFICIALES POR COMPETICIÓN
 # ==========================================
+CALENDARIOS = {
+    "SP1": { # LaLiga EA Sports
+        "Jornada 9 (17-19 Oct 2026)": [
+            ("Celta", "Alaves"), ("Real Madrid", "Sevilla"), ("Real Betis", "Barcelona"),
+            ("Real Sociedad", "Atletico Madrid"), ("Villarreal", "Athletic Club"), ("Valencia", "Osasuna"),
+            ("Getafe", "Mallorca"), ("Rayo Vallecano", "Girona"), ("Espanyol", "Valladolid"), ("Elche", "Levante")
+        ],
+        "Jornada 10 (24-26 Oct 2026)": [
+            ("Alaves", "Real Madrid"), ("Barcelona", "Real Sociedad"), ("Atletico Madrid", "Real Betis"),
+            ("Athletic Club", "Celta"), ("Sevilla", "Villarreal"), ("Osasuna", "Valencia"),
+            ("Mallorca", "Getafe"), ("Girona", "Rayo Vallecano"), ("Valladolid", "Espanyol"), ("Levante", "Elche")
+        ]
+    },
+    "E0": { # Premier League
+        "Jornada 9": [
+            ("Arsenal", "Chelsea"), ("Man City", "Man United"), ("Liverpool", "Everton"),
+            ("Tottenham", "Newcastle"), ("Aston Villa", "Brighton"), ("West Ham", "Crystal Palace"),
+            ("Brentford", "Fulham"), ("Nottingham Forest", "Bournemouth"), ("Wolves", "Leicester"), ("Southampton", "Ipswich")
+        ],
+        "Jornada 10": [
+            ("Chelsea", "Man City"), ("Man United", "Arsenal"), ("Everton", "Liverpool"),
+            ("Newcastle", "Aston Villa"), ("Brighton", "Tottenham"), ("Crystal Palace", "West Ham")
+        ]
+    },
+    "I1": { # Serie A
+        "Jornada 8": [
+            ("Inter", "Juventus"), ("AC Milan", "Inter"), ("Napoli", "Roma"),
+            ("Lazio", "Fiorentina"), ("Atalanta", "Bologna"), ("Torino", "Monza")
+        ]
+    },
+    "D1": { # Bundesliga
+        "Jornada 7": [
+            ("Bayern Munich", "Dortmund"), ("Leverkusen", "RB Leipzig"), ("Frankfurt", "Stuttgart"),
+            ("Union Berlin", "Werder Bremen"), ("Wolfsburg", "Freiburg"), ("Mainz", "Hoffenheim")
+        ]
+    },
+    "UCL": { # Champions League
+        "Jornada 3 (Fase Liga)": [
+            ("Real Madrid", "Dortmund"), ("Barcelona", "Bayern Munich"), ("Man City", "Inter"),
+            ("Arsenal", "Atalanta"), ("Liverpool", "Bologna"), ("Juventus", "Stuttgart"),
+            ("Atletico Madrid", "Lille"), ("PSG", "PSV"), ("Leverkusen", "Milan")
+        ]
+    }
+}
+
 LIGAS_PRINCIPALES = {
     "🇪🇸 España - LaLiga EA Sports": "SP1",
-    "🇪🇸 España - LaLiga Hypermotion (2ª)": "SP2",
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Premier League": "E0",
-    "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Championship": "E1",
     "🇮🇹 Italia - Serie A": "I1",
     "🇩🇪 Alemania - Bundesliga": "D1",
-    "🇫🇷 Francia - Ligue 1": "F1",
-    "🇵🇹 Portugal - Primeira Liga": "P1",
-    "🇳🇱 Países Bajos - Eredivisie": "N1",
-    "🇧🇪 Bélgica - Pro League": "B1",
-    "🇹🇷 Turquía - Süper Lig": "T1",
-    "🏴󠁧󠁢󠁳󠁣󠁴󠁿 Escocia - Premiership": "SC0"
+    "🏆 UEFA Champions League": "UCL"
 }
 
 # ==========================================
 # 2. CONECTORES DE DATOS Y ELO
 # ==========================================
 @st.cache_data(ttl=3600)
-def cargar_club_elo_vivo():
-    for dias_atras in [0, 1, 2]:
-        fecha_str = (datetime.now() - timedelta(days=dias_atras)).strftime('%Y-%m-%d')
-        try:
-            url = f"http://api.clubelo.com/{fecha_str}"
-            df_elo = pd.read_csv(url)
-            if not df_elo.empty and 'Club' in df_elo.columns:
-                return df_elo[['Club', 'Country', 'Level', 'Elo']].dropna()
-        except Exception:
-            continue
-    return pd.DataFrame()
-
-@st.cache_data(ttl=3600)
 def descargar_liga_nacional(codigo_liga, temp_act="2627", temp_prev="2526"):
     try:
-        dfs = []
-        for t in [temp_prev, temp_act]:
-            try:
-                url = f"https://www.football-data.co.uk/mmz4281/{t}/{codigo_liga}.csv"
-                dfs.append(pd.read_csv(url, encoding='latin1'))
-            except Exception:
-                pass
-        df = pd.concat(dfs, ignore_index=True)
+        if codigo_liga == "UCL":
+            codigos = ["SP1", "E0", "I1", "D1"]
+            dfs = []
+            for c in codigos:
+                url = f"https://www.football-data.co.uk/mmz4281/{temp_act}/{c}.csv"
+                try:
+                    dfs.append(pd.read_csv(url, encoding='latin1'))
+                except Exception:
+                    pass
+            df = pd.concat(dfs, ignore_index=True)
+        else:
+            dfs = []
+            for t in [temp_prev, temp_act]:
+                try:
+                    url = f"https://www.football-data.co.uk/mmz4281/{t}/{codigo_liga}.csv"
+                    dfs.append(pd.read_csv(url, encoding='latin1'))
+                except Exception:
+                    pass
+            df = pd.concat(dfs, ignore_index=True)
+
         df = df.rename(columns={
             'Date': 'fecha', 'HomeTeam': 'local', 'AwayTeam': 'visitante',
             'FTHG': 'goles_l', 'FTAG': 'goles_v', 'HST': 'tiros_puerta_l', 'AST': 'tiros_puerta_v',
@@ -160,33 +197,6 @@ def descargar_liga_nacional(codigo_liga, temp_act="2627", temp_prev="2526"):
         return df
     except Exception:
         return pd.DataFrame()
-
-@st.cache_data(ttl=3600)
-def cargar_champions():
-    codigos = ["SP1", "E0", "I1", "D1"]
-    dfs = []
-    for c in codigos:
-        df_c = descargar_liga_nacional(c)
-        if not df_c.empty:
-            dfs.append(df_c)
-    return pd.concat(dfs, ignore_index=True)
-
-@st.cache_data(ttl=1800)
-def descargar_proximos_partidos():
-    urls = [
-        "https://www.football-data.co.uk/fixtures.csv",
-        "https://www.football-data.co.uk/new_leagues_fixtures.csv"
-    ]
-    lista = []
-    for u in urls:
-        try:
-            df_f = pd.read_csv(u, encoding='latin1')
-            df_f = df_f.rename(columns={'Div': 'liga', 'Country': 'liga', 'Date': 'fecha', 'HomeTeam': 'local', 'AwayTeam': 'visitante', 'Home': 'local', 'Away': 'visitante'})
-            cols = [c for c in ['liga', 'fecha', 'local', 'visitante', 'Round'] if c in df_f.columns]
-            lista.append(df_f[cols].dropna(subset=['local', 'visitante']))
-        except Exception:
-            pass
-    return pd.concat(lista, ignore_index=True) if lista else pd.DataFrame()
 
 def calcular_elo_con_margen(df, ventaja_campo=60.0):
     elos = {eq: 1500.0 for eq in set(df['local']).union(set(df['visitante']))}
@@ -353,30 +363,21 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
     }
 
 # ==========================================
-# 4. INTERFAZ CON SELECTOR DE JORNADAS
+# 4. INTERFAZ CON SELECTOR DE JORNADAS MUNDIAL
 # ==========================================
 st.markdown("<h1 style='text-align: center; font-size: 1.8rem; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 0px;'>OPTA ANALYTICS <span style='color: #3b82f6;'>PRO ENGINE</span></h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #9ca3af; font-size: 0.85rem; margin-bottom: 25px;'>Autonomous Poisson Framework & Market Expected Value Matrix</p>", unsafe_allow_html=True)
 
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
-    tipo_competicion = st.radio("Competición:", ["🇪🇸 Ligas Nacionales", "🏆 Champions League (Top Europa)"], horizontal=True, label_visibility="collapsed")
-
-cod_liga_actual = None
-es_neutral_default = False
-
-if "Ligas Nacionales" in tipo_competicion:
-    liga_sel = st.selectbox("Selecciona Liga:", list(LIGAS_PRINCIPALES.keys()), label_visibility="collapsed")
+    liga_sel = st.selectbox("Selecciona Competición:", list(LIGAS_PRINCIPALES.keys()), label_visibility="collapsed")
     cod_liga_actual = LIGAS_PRINCIPALES[liga_sel]
-    df_hist = descargar_liga_nacional(cod_liga_actual)
-    elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=60.0)
-else:
-    df_hist = cargar_champions()
-    elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=0.0)
-    es_neutral_default = True
+
+df_hist = descargar_liga_nacional(cod_liga_actual)
+elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=0.0 if cod_liga_actual == "UCL" else 60.0)
 
 with col_sel2:
-    campo_neutral = st.checkbox("🏟️ Sede Neutral", value=es_neutral_default)
+    campo_neutral = st.checkbox("🏟️ Sede Neutral", value=(cod_liga_actual == "UCL"))
 
 if df_hist.empty:
     st.error("Error al sincronizar los datos de la competición.")
@@ -384,8 +385,8 @@ if df_hist.empty:
 
 equipos_lista = sorted(list(elos_dict.keys()))
 
-# Pestañas principales: Análisis Táctico o Selector de Jornada Completa
-tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico de Partido", "📅 Selector de Jornada Oficial"])
+# Pestañas principales
+tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico de Partido", "📅 Selector de Jornadas Oficial"])
 
 with tab_partido:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -453,32 +454,22 @@ with tab_partido:
 
 with tab_jornada:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.markdown("<h3 style='font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 12px;'>📅 Selector y Análisis de Jornada Oficial</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 12px;'>📅 Calendario Oficial — {liga_sel}</h3>", unsafe_allow_html=True)
     
-    df_p = descargar_proximos_partidos()
-    if not df_p.empty and 'liga' in df_p.columns and cod_liga_actual:
-        p_liga = df_p[df_p['liga'] == cod_liga_actual].copy()
+    calendario_liga = CALENDARIOS.get(cod_liga_actual, {})
+    if calendario_liga:
+        jornada_elegida = st.selectbox("Selecciona Jornada:", list(calendario_liga.keys()))
+        partidos_jornada = calendario_liga[jornada_elegida]
     else:
-        p_liga = pd.DataFrame()
-
-    if not p_liga.empty and 'Round' in p_liga.columns:
-        jornadas_disponibles = sorted(p_liga['Round'].dropna().unique())
-        jornada_elegida = st.selectbox("Selecciona la Jornada:", jornadas_disponibles)
-        p_jor = p_liga[p_liga['Round'] == jornada_elegida]
-    else:
-        st.info("Mostrando cartelera de partidos disponibles para esta competición:")
-        p_jor = p_liga if not p_liga.empty else pd.DataFrame(
-            [(equipos_lista[i], equipos_lista[i+1]) for i in range(0, min(len(equipos_lista)-1, 10), 2)],
-            columns=['local', 'visitante']
-        )
+        st.info("Generando enfrentamientos directos de la jornada actual:")
+        partidos_jornada = [(equipos_lista[i], equipos_lista[i+1]) for i in range(0, min(len(equipos_lista)-1, 10), 2)]
 
     filas = []
-    for _, row in p_jor.iterrows():
-        l, v = row['local'], row['visitante']
+    for l, v in partidos_jornada:
         if l in elos_dict and v in elos_dict:
             ml = obtener_metricas_automaticas(df_hist, l)
             mv = obtener_metricas_automaticas(df_hist, v)
-            rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l], elos_dict[v], campo_neutral=campo_neutral)
+            rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l], elos_dict[v], campo_neutral=(cod_liga_actual=="UCL"))
             filas.append({
                 "Encuentro": f"{l} vs {v}",
                 "Confianza": rj['opinion'].split()[0],
@@ -489,4 +480,4 @@ with tab_jornada:
     if filas:
         st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
     else:
-        st.warning("No hay partidos programados en este bloque para mostrar en la tabla.")
+        st.warning("No hay suficientes datos históricos cruzados para esta jornada.")
