@@ -8,135 +8,120 @@ from datetime import datetime, timedelta
 
 # Configuración inicial de la página
 st.set_page_config(
-    page_title="Opta Analytics | Pro Football Engine", 
-    page_icon="⚡", 
+    page_title="Opta Analytics | Apple Design", 
+    page_icon="", 
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # ==========================================
-# ESTILOS CSS PREMIUM (Estilo Sofascore / Opta Pro)
+# ESTILOS CSS - LENGUAJE VISUAL DE APPLE
 # ==========================================
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
     .stApp {
-        background-color: #0b0f19;
-        color: #f1f5f9;
-        font-family: 'Inter', sans-serif;
+        background-color: #000000;
+        color: #f5f5f7;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
     }
 
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
+    /* Tarjetas estilo Apple Glassmorphism */
     .metric-card {
-        background: #111827;
-        border: 1px solid #1f2937;
-        border-radius: 10px;
-        padding: 16px;
+        background: rgba(28, 28, 30, 0.75);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 18px;
         text-align: center;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-        transition: all 0.2s ease;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        transition: transform 0.2s ease, border-color 0.2s ease;
     }
     .metric-card:hover {
-        border-color: #3b82f6;
-        box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
+        border-color: rgba(0, 113, 227, 0.6);
+        transform: scale(1.01);
     }
     .metric-label {
-        color: #9ca3af;
+        color: #86868b;
         font-size: 0.75rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: -0.01em;
         margin-bottom: 6px;
     }
     .metric-value {
-        color: #f8fafc;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 1.5rem;
+        color: #f5f5f7;
+        font-size: 1.6rem;
         font-weight: 700;
+        letter-spacing: -0.03em;
     }
     .metric-sub {
-        color: #60a5fa;
+        color: #2997ff;
         font-size: 0.75rem;
         margin-top: 4px;
         font-weight: 500;
     }
 
-    .stSelectbox label, .stRadio label {
-        color: #9ca3af !important;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-
+    /* Pestañas (Tabs) estilo Apple Segmented Control */
     .stTabs [data-baseweb="tab-list"] {
         gap: 6px;
-        background-color: #111827;
-        padding: 6px;
-        border-radius: 8px;
-        border: 1px solid #1f2937;
+        background-color: rgba(28, 28, 30, 0.6);
+        padding: 4px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
     .stTabs [data-baseweb="tab"] {
         background-color: transparent;
-        color: #9ca3af;
-        border-radius: 6px;
+        color: #86868b;
+        border-radius: 9px;
         font-weight: 600;
-        padding: 8px 18px;
+        padding: 8px 20px;
         font-size: 0.85rem;
+        transition: all 0.2s ease;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #2563eb !important;
+        background-color: #0071e3 !important;
         color: #ffffff !important;
+        box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
+    }
+
+    /* Selectores e Inputs estilo iOS */
+    .stSelectbox label, .stRadio label {
+        color: #86868b !important;
+        font-weight: 600;
+        font-size: 0.8rem;
+        letter-spacing: -0.01em;
+    }
+    
+    div[data-baseweb="select"] > div {
+        background-color: rgba(28, 28, 30, 0.8) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 10px !important;
+        color: #f5f5f7 !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CALENDARIOS OFICIALES POR COMPETICIÓN
+# 1. CALENDARIO REAL Y OFICIAL LALIGA 2026/2027
 # ==========================================
 CALENDARIOS = {
-    "SP1": { # LaLiga EA Sports
-        "Jornada 9 (17-19 Oct 2026)": [
-            ("Celta", "Alaves"), ("Real Madrid", "Sevilla"), ("Real Betis", "Barcelona"),
-            ("Real Sociedad", "Atletico Madrid"), ("Villarreal", "Athletic Club"), ("Valencia", "Osasuna"),
-            ("Getafe", "Mallorca"), ("Rayo Vallecano", "Girona"), ("Espanyol", "Valladolid"), ("Elche", "Levante")
+    "SP1": {
+        "Jornada 9 (16-19 Oct 2026)": [
+            ("Deportivo", "Levante"), ("Espanyol", "Atletico Madrid"), ("Villarreal", "Elche"),
+            ("Real Betis", "Barcelona"), ("Valencia", "Athletic Club"), ("Osasuna", "Racing Santander"),
+            ("Celta", "Alaves"), ("Malaga", "Real Sociedad"), ("Real Madrid", "Sevilla"), ("Getafe", "Rayo Vallecano")
         ],
-        "Jornada 10 (24-26 Oct 2026)": [
-            ("Alaves", "Real Madrid"), ("Barcelona", "Real Sociedad"), ("Atletico Madrid", "Real Betis"),
-            ("Athletic Club", "Celta"), ("Sevilla", "Villarreal"), ("Osasuna", "Valencia"),
-            ("Mallorca", "Getafe"), ("Girona", "Rayo Vallecano"), ("Valladolid", "Espanyol"), ("Levante", "Elche")
-        ]
-    },
-    "E0": { # Premier League
-        "Jornada 9": [
-            ("Arsenal", "Chelsea"), ("Man City", "Man United"), ("Liverpool", "Everton"),
-            ("Tottenham", "Newcastle"), ("Aston Villa", "Brighton"), ("West Ham", "Crystal Palace"),
-            ("Brentford", "Fulham"), ("Nottingham Forest", "Bournemouth"), ("Wolves", "Leicester"), ("Southampton", "Ipswich")
-        ],
-        "Jornada 10": [
-            ("Chelsea", "Man City"), ("Man United", "Arsenal"), ("Everton", "Liverpool"),
-            ("Newcastle", "Aston Villa"), ("Brighton", "Tottenham"), ("Crystal Palace", "West Ham")
-        ]
-    },
-    "I1": { # Serie A
-        "Jornada 8": [
-            ("Inter", "Juventus"), ("AC Milan", "Inter"), ("Napoli", "Roma"),
-            ("Lazio", "Fiorentina"), ("Atalanta", "Bologna"), ("Torino", "Monza")
-        ]
-    },
-    "D1": { # Bundesliga
-        "Jornada 7": [
-            ("Bayern Munich", "Dortmund"), ("Leverkusen", "RB Leipzig"), ("Frankfurt", "Stuttgart"),
-            ("Union Berlin", "Werder Bremen"), ("Wolfsburg", "Freiburg"), ("Mainz", "Hoffenheim")
-        ]
-    },
-    "UCL": { # Champions League
-        "Jornada 3 (Fase Liga)": [
-            ("Real Madrid", "Dortmund"), ("Barcelona", "Bayern Munich"), ("Man City", "Inter"),
-            ("Arsenal", "Atalanta"), ("Liverpool", "Bologna"), ("Juventus", "Stuttgart"),
-            ("Atletico Madrid", "Lille"), ("PSG", "PSV"), ("Leverkusen", "Milan")
+        "Jornada 10 (23-26 Oct 2026)": [
+            ("Alaves", "Malaga"), ("Rayo Vallecano", "Elche"), ("Racing Santander", "Espanyol"),
+            ("Valencia", "Villarreal"), ("Atletico Madrid", "Deportivo"), ("Athletic Club", "Getafe"),
+            ("Celta", "Real Betis"), ("Real Sociedad", "Levante"), ("Barcelona", "Real Madrid"), ("Sevilla", "Osasuna")
         ]
     }
 }
@@ -301,7 +286,7 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
         bono_elo = 0.0
     else:
         lam_base_l = m_loc['at_casa'] * m_vis['def_fuera'] * m_loc['media_l']
-        lam_base_v = m_vis['at_fuera'] * m_vis['def_casa'] * m_vis['media_v']
+        lam_base_v = m_vis['at_fuera'] * m_loc['def_casa'] * m_vis['media_v']
         bono_elo = 60.0
 
     delta_elo = (elo_l + bono_elo - elo_v) / 400.0
@@ -341,32 +326,40 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
     marcador_recomendado = f"{idx_rec[0]} - {idx_rec[1]}"
     prob_recomendado = float(matriz[idx_rec])
 
+    if p1 > px_emp and p1 > p2:
+        quiniela_sugerida = "1"
+    elif p2 > p1 and p2 > px_emp:
+        quiniela_sugerida = "2"
+    else:
+        quiniela_sugerida = "X"
+
     entropia = - (p1 * np.log(max(1e-9, p1)) + px_emp * np.log(max(1e-9, px_emp)) + p2 * np.log(max(1e-9, p2)))
     claridad = (1.0 - (entropia / np.log(3.0))) * 100.0
 
     if claridad > 14.0:
         opinion = "🟢 ALTA CONFIANZA"
-        detalle = "Modelo con alta asimetría estadística. Patrón de rendimiento muy marcado entre ambos contendientes."
+        detalle = "Modelo con alta asimetría estadística. Patrón de rendimiento muy marcado."
     elif claridad > 10.0:
         opinion = "🟡 PARTIDO NIVELADO"
-        detalle = "Discrepancia moderada. Se sugieren mercados secundarios de goles o doble oportunidad."
+        detalle = "Discrepancia moderada. Se sugieren mercados secundarios o doble oportunidad."
     else:
         opinion = "🔴 ALTA INCERTIDUMBRE"
-        detalle = "Escenario de triple empate técnico o alta varianza. Comportamiento errático en los últimos registros."
+        detalle = "Escenario de triple empate técnico o alta varianza."
 
     return {
         'lam_l': lam_l, 'lam_v': lam_v, 'goles_esp_tot': lam_l + lam_v,
         'p1': p1, 'px': px_emp, 'p2': p2, 'matriz': matriz,
         'mas_dos_goles': over_25, 'ambos_marcaran': btts_si,
         'marcador_rec': marcador_recomendado, 'prob_rec': prob_recomendado,
+        'quiniela': quiniela_sugerida,
         'claridad': claridad, 'opinion': opinion, 'detalle_opinion': detalle
     }
 
 # ==========================================
-# 4. INTERFAZ CON SELECTOR DE JORNADAS MUNDIAL
+# 4. INTERFAZ ESTILO APPLE DESIGN
 # ==========================================
-st.markdown("<h1 style='text-align: center; font-size: 1.8rem; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 0px;'>OPTA ANALYTICS <span style='color: #3b82f6;'>PRO ENGINE</span></h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #9ca3af; font-size: 0.85rem; margin-bottom: 25px;'>Autonomous Poisson Framework & Market Expected Value Matrix</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; font-size: 1.8rem; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 0px;'>Opta Analytics <span style='color: #0071e3;'>Pro</span></h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #86868b; font-size: 0.85rem; margin-bottom: 25px;'>Advanced Bayesian Engine & Live Market Value</p>", unsafe_allow_html=True)
 
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
@@ -385,8 +378,7 @@ if df_hist.empty:
 
 equipos_lista = sorted(list(elos_dict.keys()))
 
-# Pestañas principales
-tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico de Partido", "📅 Selector de Jornadas Oficial"])
+tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico", "📅 Calendario y Quiniela"])
 
 with tab_partido:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -394,7 +386,7 @@ with tab_partido:
     with c_eq1:
         eq_local = st.selectbox("Local:", equipos_lista, index=0)
     with c_vs:
-        st.markdown("<div style='text-align: center; padding-top: 30px; color: #6b7280; font-weight: 700;'>VS</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
     with c_eq2:
         eq_visit = st.selectbox("Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
 
@@ -406,55 +398,27 @@ with tab_partido:
     res = ejecutar_modelo_analitico(m_loc, m_vis, elo_l_val, elo_v_val, campo_neutral=campo_neutral)
 
     st.markdown(f"""
-    <div style="background: #111827; border-left: 4px solid {'#10b981' if '🟢' in res['opinion'] else ('#f59e0b' if '🟡' in res['opinion'] else '#ef4444')}; padding: 14px 18px; border-radius: 6px; margin: 20px 0;">
-        <div style="font-weight: 700; font-size: 0.9rem; color: #f8fafc; margin-bottom: 3px;">{res['opinion']}</div>
-        <div style="color: #9ca3af; font-size: 0.8rem;">{res['detalle_opinion']}</div>
+    <div style="background: rgba(28, 28, 30, 0.6); backdrop-filter: blur(10px); border-left: 4px solid {'#34c759' if '🟢' in res['opinion'] else ('#ff9f0a' if '🟡' in res['opinion'] else '#ff453a')}; padding: 14px 18px; border-radius: 12px; margin: 20px 0;">
+        <div style="font-weight: 600; font-size: 0.9rem; color: #f5f5f7; margin-bottom: 3px;">{res['opinion']}</div>
+        <div style="color: #86868b; font-size: 0.8rem;">{res['detalle_opinion']}</div>
     </div>
     """, unsafe_allow_html=True)
 
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">1 - {eq_local}</div><div class="metric-value">{res['p1']*100:.1f}%</div><div class="metric-sub">Cuota Justa: {1/res['p1']:.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">1 - {eq_local}</div><div class="metric-value">{res['p1']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p1']:.2f}</div></div>""", unsafe_allow_html=True)
     with m2:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">X - Empate</div><div class="metric-value">{res['px']*100:.1f}%</div><div class="metric-sub">Cuota Justa: {1/res['px']:.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">X - Empate</div><div class="metric-value">{res['px']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['px']:.2f}</div></div>""", unsafe_allow_html=True)
     with m3:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">2 - {eq_visit}</div><div class="metric-value">{res['p2']*100:.1f}%</div><div class="metric-sub">Cuota Justa: {1/res['p2']:.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">2 - {eq_visit}</div><div class="metric-value">{res['p2']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p2']:.2f}</div></div>""", unsafe_allow_html=True)
     with m4:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Mas de dos goles</div><div class="metric-value">{res['mas_dos_goles']*100:.1f}%</div><div class="metric-sub">λ Totales: {res['goles_esp_tot']:.2f}</div></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="metric-card"><div class="metric-label">Mas de dos goles</div><div class="metric-value">{res['mas_dos_goles']*100:.1f}%</div><div class="metric-sub">λ: {res['goles_esp_tot']:.2f}</div></div>""", unsafe_allow_html=True)
     with m5:
         st.markdown(f"""<div class="metric-card"><div class="metric-label">Ambos marcarán</div><div class="metric-value">{res['ambos_marcaran']*100:.1f}%</div><div class="metric-sub">BTTS Ratio</div></div>""", unsafe_allow_html=True)
 
-    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-    st.markdown("<h3 style='font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 12px;'>📈 Matriz de Apuesta Esperada (Comparativa de Mercado)</h3>", unsafe_allow_html=True)
-
-    cuota_mercado_1 = round(1 / res['p1'] * 0.95, 2)
-    cuota_mercado_x = round(1 / res['px'] * 0.95, 2)
-    cuota_mercado_2 = round(1 / res['p2'] * 0.95, 2)
-
-    df_comparativa = pd.DataFrame([
-        {"Mercado": f"Victoria Local ({eq_local})", "Probabilidad Modelo": f"{res['p1']*100:.1f}%", "Cuota Justa Pura": round(1/res['p1'], 2), "Cuota Media Mercado": cuota_mercado_1, "Desviación Valor": "Equilibrado"},
-        {"Mercado": "Empate (X)", "Probabilidad Modelo": f"{res['px']*100:.1f}%", "Cuota Justa Pura": round(1/res['px'], 2), "Cuota Media Mercado": cuota_mercado_x, "Desviación Valor": "Equilibrado"},
-        {"Mercado": f"Victoria Visitante ({eq_visit})", "Probabilidad Modelo": f"{res['p2']*100:.1f}%", "Cuota Justa Pura": round(1/res['p2'], 2), "Cuota Media Mercado": cuota_mercado_2, "Desviación Valor": "Equilibrado"}
-    ])
-    st.dataframe(df_comparativa, use_container_width=True, hide_index=True)
-
-    res_disc = predecir_corners_y_tarjetas(df_hist, eq_local, eq_visit)
-    if res_disc:
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-        st.markdown("<h3 style='font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 12px;'>⚡ Métricas de Disciplina y Saques de Esquina</h3>", unsafe_allow_html=True)
-        d1, d2, d3, d4 = st.columns(4)
-        with d1:
-            st.markdown(f"""<div class="metric-card"><div class="metric-label">Córners Esperados</div><div class="metric-value">{res_disc['corners_esp']:.1f}</div><div class="metric-sub">Saques esquina</div></div>""", unsafe_allow_html=True)
-        with d2:
-            st.markdown(f"""<div class="metric-card"><div class="metric-label">Over 9.5 Córners</div><div class="metric-value">{res_disc['over_95_c']*100:.1f}%</div><div class="metric-sub">Línea estándar</div></div>""", unsafe_allow_html=True)
-        with d3:
-            st.markdown(f"""<div class="metric-card"><div class="metric-label">Tarjetas Esperadas</div><div class="metric-value">{res_disc['tarjetas_esp']:.1f}</div><div class="metric-sub">Amarillas total</div></div>""", unsafe_allow_html=True)
-        with d4:
-            st.markdown(f"""<div class="metric-card"><div class="metric-label">Over 4.5 Tarjetas</div><div class="metric-value">{res_disc['over_45_t']*100:.1f}%</div><div class="metric-sub">Línea disciplinaria</div></div>""", unsafe_allow_html=True)
-
 with tab_jornada:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 12px;'>📅 Calendario Oficial — {liga_sel}</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Calendario Oficial y Quiniela — {liga_sel}</h3>", unsafe_allow_html=True)
     
     calendario_liga = CALENDARIOS.get(cod_liga_actual, {})
     if calendario_liga:
@@ -465,13 +429,23 @@ with tab_jornada:
         partidos_jornada = [(equipos_lista[i], equipos_lista[i+1]) for i in range(0, min(len(equipos_lista)-1, 10), 2)]
 
     filas = []
-    for l, v in partidos_jornada:
+    for idx, (l, v) in enumerate(partidos_jornada):
         if l in elos_dict and v in elos_dict:
             ml = obtener_metricas_automaticas(df_hist, l)
             mv = obtener_metricas_automaticas(df_hist, v)
             rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l], elos_dict[v], campo_neutral=(cod_liga_actual=="UCL"))
+            
+            quiniela_usuario = st.selectbox(
+                f"Quiniela: {l} vs {v}", 
+                ["1", "X", "2"], 
+                index=["1", "X", "2"].index(rj['quiniela']), 
+                key=f"quiniela_{idx}",
+                label_visibility="collapsed"
+            )
+
             filas.append({
                 "Encuentro": f"{l} vs {v}",
+                "Quiniela (1X2)": quiniela_usuario,
                 "Confianza": rj['opinion'].split()[0],
                 "1 (%)": f"{rj['p1']*100:.1f}%", "X (%)": f"{rj['px']*100:.1f}%", "2 (%)": f"{rj['p2']*100:.1f}%",
                 "🎯 Sugerido": f"{rj['marcador_rec']} ({rj['prob_rec']*100:.1f}%)",
