@@ -120,16 +120,13 @@ LIGAS_OFICIALES = {
 }
 
 # ==========================================
-# 2. CALENDARIOS OFICIALES COMPLETOS (JORNADAS 1 A 38)
+# 2. GENERADOR DE CALENDARIO DINÁMICO (38 JORNADAS)
 # ==========================================
-# Generador matemático determinista pero basado en los 20 equipos reales de la categoría
 def generar_calendario_oficial(equipos):
-    """Genera las 38 jornadas oficiales de una liga de 20 equipos (sistema Round-Robin simétrico)."""
     n = len(equipos)
     if n < 4:
         return {}
     
-    # Asegurar número par para el algoritmo de rotación
     eqs = list(equipos)
     if n % 2 != 0:
         eqs.append("Descansa")
@@ -146,20 +143,18 @@ def generar_calendario_oficial(equipos):
         for i in range(mid):
             casa = match_list[i]
             fuera = match_list[num_eqs - 1 - i]
-            # Alternar localía en la segunda vuelta
             if j >= num_eqs - 1:
                 casa, fuera = fuera, casa
             if casa != "Descansa" and fuera != "Descansa":
                 partidos.append((casa, fuera))
         
         calendario[jornada_key] = partidos
-        # Rotación de equipos (algoritmo estándar de Berger)
         match_list = [match_list[0]] + [match_list[-1]] + match_list[1:-1]
         
     return calendario
 
 # ==========================================
-# 3. CONECTOR DE DATOS BLINDADO
+# 3. CONECTOR DE DATOS Y EXTRACCIÓN DINÁMICA
 # ==========================================
 @st.cache_data(ttl=3600)
 def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
@@ -192,24 +187,6 @@ def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
         df = df.dropna(subset=['local', 'visitante', 'goles_l', 'goles_v']).copy()
         df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce')
         df = df.dropna(subset=['fecha']).sort_values('fecha')
-
-        # Aislar estrictamente Primera y Segunda división española
-        if codigo_liga == "SP1":
-            equipos_primera = [
-                "Alaves", "Athletic Club", "Atletico Madrid", "Barcelona", "Celta", 
-                "Elche", "Espanyol", "Getafe", "Girona", "Levante", "Mallorca", 
-                "Osasuna", "Rayo Vallecano", "Real Betis", "Real Madrid", "Real Sociedad", 
-                "Sevilla", "Valencia", "Valladolid", "Villarreal"
-            ]
-            df = df[df['local'].isin(equipos_primera) & df['visitante'].isin(equipos_primera)]
-        elif codigo_liga == "SP2":
-            equipos_primera = [
-                "Alaves", "Athletic Club", "Atletico Madrid", "Barcelona", "Celta", 
-                "Elche", "Espanyol", "Getafe", "Girona", "Levante", "Mallorca", 
-                "Osasuna", "Rayo Vallecano", "Real Betis", "Real Madrid", "Real Sociedad", 
-                "Sevilla", "Valencia", "Valladolid", "Villarreal"
-            ]
-            df = df[~df['local'].isin(equipos_primera) & ~df['visitante'].isin(equipos_primera)]
 
         if 'tiros_puerta_l' in df.columns and df['tiros_puerta_l'].notna().sum() > 20:
             st_l = df['tiros_puerta_l'].fillna(df['goles_l'] * 2.8)
