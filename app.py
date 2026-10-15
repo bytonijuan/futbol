@@ -104,7 +104,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO OFICIAL DE LIGAS (CÓDIGOS EXACTOS)
+# 1. CATÁLOGO OFICIAL DE LIGAS AISLADAS
 # ==========================================
 LIGAS_OFICIALES = {
     "🇪🇸 España - LaLiga EA Sports (1ª)": "SP1",
@@ -115,12 +115,11 @@ LIGAS_OFICIALES = {
     "🇩🇪 Alemania - Bundesliga": "D1",
     "🇫🇷 Francia - Ligue 1": "F1",
     "🇵🇹 Portugal - Primeira Liga": "P1",
-    "🇳🇱 Países Bajos - Eredivisie": "N1",
     "🏆 UEFA Champions League (Pool Top)": "UCL"
 }
 
 # ==========================================
-# 2. CONECTORES DE DATOS ESTRICTOS POR LIGA
+# 2. CONECTOR DE DATOS ESTRICTO
 # ==========================================
 @st.cache_data(ttl=3600)
 def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
@@ -184,7 +183,7 @@ def calcular_elo_con_margen(df, ventaja_campo=60.0):
     return elos
 
 # ==========================================
-# 3. MOTOR ESTADÍSTICO 100% AUTOMÁTICO
+# 3. MOTOR ESTADÍSTICO DE POISSON
 # ==========================================
 def obtener_metricas_automaticas(df, equipo):
     df = df.copy()
@@ -312,7 +311,7 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
     }
 
 # ==========================================
-# 4. INTERFAZ PRINCIPAL
+# 4. INTERFAZ PRINCIPAL (DISEÑO APPLE PRO)
 # ==========================================
 st.markdown("<h1 style='text-align: center; font-size: 1.8rem; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 0px;'>Opta Analytics <span style='color: #0071e3;'>Pro</span></h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #86868b; font-size: 0.85rem; margin-bottom: 25px;'>Advanced Bayesian Engine & Live Market Value</p>", unsafe_allow_html=True)
@@ -334,92 +333,37 @@ if df_hist.empty:
 
 equipos_lista = sorted(list(elos_dict.keys()))
 
-tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico", "📅 Selector de Jornada"])
+st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+c_eq1, c_vs, c_eq2 = st.columns([2, 0.4, 2])
+with c_eq1:
+    eq_local = st.selectbox("Local:", equipos_lista, index=0)
+with c_vs:
+    st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
+with c_eq2:
+    eq_visit = st.selectbox("Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
 
-with tab_partido:
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    c_eq1, c_vs, c_eq2 = st.columns([2, 0.4, 2])
-    with c_eq1:
-        eq_local = st.selectbox("Local:", equipos_lista, index=0)
-    with c_vs:
-        st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
-    with c_eq2:
-        eq_visit = st.selectbox("Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
+m_loc = obtener_metricas_automaticas(df_hist, eq_local)
+m_vis = obtener_metricas_automaticas(df_hist, eq_visit)
+elo_l_val = elos_dict.get(eq_local, 1500.0)
+elo_v_val = elos_dict.get(eq_visit, 1500.0)
 
-    m_loc = obtener_metricas_automaticas(df_hist, eq_local)
-    m_vis = obtener_metricas_automaticas(df_hist, eq_visit)
-    elo_l_val = elos_dict.get(eq_local, 1500.0)
-    elo_v_val = elos_dict.get(eq_visit, 1500.0)
+res = ejecutar_modelo_analitico(m_loc, m_vis, elo_l_val, elo_v_val, campo_neutral=campo_neutral)
 
-    res = ejecutar_modelo_analitico(m_loc, m_vis, elo_l_val, elo_v_val, campo_neutral=campo_neutral)
+st.markdown(f"""
+<div style="background: rgba(28, 28, 30, 0.6); backdrop-filter: blur(10px); border-left: 4px solid {'#34c759' if '🟢' in res['opinion'] else ('#ff9f0a' if '🟡' in res['opinion'] else '#ff453a')}; padding: 14px 18px; border-radius: 12px; margin: 20px 0;">
+    <div style="font-weight: 600; font-size: 0.9rem; color: #f5f5f7; margin-bottom: 3px;">{res['opinion']}</div>
+    <div style="color: #86868b; font-size: 0.8rem;">{res['detalle_opinion']}</div>
+</div>
+""", unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div style="background: rgba(28, 28, 30, 0.6); backdrop-filter: blur(10px); border-left: 4px solid {'#34c759' if '🟢' in res['opinion'] else ('#ff9f0a' if '🟡' in res['opinion'] else '#ff453a')}; padding: 14px 18px; border-radius: 12px; margin: 20px 0;">
-        <div style="font-weight: 600; font-size: 0.9rem; color: #f5f5f7; margin-bottom: 3px;">{res['opinion']}</div>
-        <div style="color: #86868b; font-size: 0.8rem;">{res['detalle_opinion']}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    m1, m2, m3, m4, m5 = st.columns(5)
-    with m1:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">1 - {eq_local}</div><div class="metric-value">{res['p1']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p1']:.2f}</div></div>""", unsafe_allow_html=True)
-    with m2:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">X - Empate</div><div class="metric-value">{res['px']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['px']:.2f}</div></div>""", unsafe_allow_html=True)
-    with m3:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">2 - {eq_visit}</div><div class="metric-value">{res['p2']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p2']:.2f}</div></div>""", unsafe_allow_html=True)
-    with m4:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Mas de dos goles</div><div class="metric-value">{res['mas_dos_goles']*100:.1f}%</div><div class="metric-sub">λ: {res['goles_esp_tot']:.2f}</div></div>""", unsafe_allow_html=True)
-    with m5:
-        st.markdown(f"""<div class="metric-card"><div class="metric-label">Ambos marcarán</div><div class="metric-value">{res['ambos_marcaran']*100:.1f}%</div><div class="metric-sub">BTTS Ratio</div></div>""", unsafe_allow_html=True)
-
-with tab_jornada:
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Selector de Jornada Oficial — {liga_sel}</h3>", unsafe_allow_html=True)
-    
-    # Generador de bloques rigurosos de jornada (partidos completos divididos en jornadas de 10 equipos)
-    num_equipos = len(equipos_lista)
-    partidos_por_bloque = num_equipos // 2
-    
-    # Creamos un calendario cíclico exacto utilizando únicamente los equipos reales de la competición seleccionada
-    lista_pareos = []
-    for i in range(num_equipos):
-        for j in range(i + 1, num_equipos):
-            lista_pareos.append((equipos_lista[i], equipos_lista[j]))
-            
-    if len(lista_pareos) > 0:
-        total_jornadas = 38 if num_equipos >= 18 else len(lista_pareos)
-        nombres_jornadas = [f"Jornada {j}" for j in range(1, total_jornadas + 1)]
-        jornada_seleccionada = st.selectbox("Selecciona la Jornada:", nombres_jornadas)
-        
-        # Extraemos el índice numérico de la jornada seleccionada
-        j_idx = int(jornada_seleccionada.split(" ")[1]) - 1
-        
-        # Seleccionamos un subconjunto limpio y sin cruces extraños para esa jornada
-        inicio_idx = (j_idx * partidos_por_bloque) % len(lista_pareos)
-        partidos_jornada = (lista_pareos[inicio_idx:] + lista_pareos[:inicio_idx])[:partidos_por_bloque]
-    else:
-        partidos_jornada = []
-
-    filas = []
-    for l, v in partidos_jornada:
-        if l in elos_dict and v in elos_dict and l != v:
-            ml = obtener_metricas_automaticas(df_hist, l)
-            mv = obtener_metricas_automaticas(df_hist, v)
-            rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l], elos_dict[v], campo_neutral=(cod_liga_actual=="UCL"))
-            
-            filas.append({
-                "Encuentro": f"{l} vs {v}",
-                "Quiniela (1X2)": rj['quiniela'],
-                "Confianza": rj['opinion'].split()[0],
-                "1 (%)": f"{rj['p1']*100:.1f}%", 
-                "X (%)": f"{rj['px']*100:.1f}%", 
-                "2 (%)": f"{rj['p2']*100:.1f}%",
-                "🎯 Sugerido": f"{rj['marcador_rec']} ({rj['prob_rec']*100:.1f}%)",
-                "Mas de dos goles": f"{rj['mas_dos_goles']*100:.1f}%", 
-                "Ambos marcarán": f"{rj['ambos_marcaran']*100:.1f}%"
-            })
-            
-    if filas:
-        st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
-    else:
-        st.warning("No hay suficientes datos de encuentros para esta competición.")
+m1, m2, m3, m4, m5 = st.columns(5)
+with m1:
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">1 - {eq_local}</div><div class="metric-value">{res['p1']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p1']:.2f}</div></div>""", unsafe_allow_html=True)
+with m2:
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">X - Empate</div><div class="metric-value">{res['px']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['px']:.2f}</div></div>""", unsafe_allow_html=True)
+with m3:
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">2 - {eq_visit}</div><div class="metric-value">{res['p2']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p2']:.2f}</div></div>""", unsafe_allow_html=True)
+with m4:
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">Mas de dos goles</div><div class="metric-value">{res['mas_dos_goles']*100:.1f}%</div><div class="metric-sub">λ: {res['goles_esp_tot']:.2f}</div></div>""", unsafe_allow_html=True)
+with m5:
+    st.markdown(f"""<div class="metric-card"><div class="metric-label">Ambos marcarán</div><div class="metric-value">{res['ambos_marcaran']*100:.1f}%</div><div class="metric-sub">BTTS Ratio</div></div>""", unsafe_allow_html=True)
