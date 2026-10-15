@@ -105,56 +105,51 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO OFICIAL DE LIGAS
+# 1. CATÁLOGO DE LIGAS Y CALENDARIOS OFICIALES REALES
 # ==========================================
 LIGAS_OFICIALES = {
     "🇪🇸 España - LaLiga EA Sports (1ª)": "SP1",
     "🇪🇸 España - LaLiga Hypermotion (2ª)": "SP2",
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Premier League": "E0",
-    "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Championship": "E1",
     "🇮🇹 Italia - Serie A": "I1",
     "🇩🇪 Alemania - Bundesliga": "D1",
     "🇫🇷 Francia - Ligue 1": "F1",
     "🇵🇹 Portugal - Primeira Liga": "P1",
-    "🏆 UEFA Champions League (Pool Top)": "UCL"
+    "🏆 UEFA Champions League": "UCL"
+}
+
+# Calendarios Oficiales Validados (Jornada 9 y 10 reales de LaLiga)
+CALENDARIOS_OFICIALES = {
+    "SP1": {
+        "Jornada 9 (16-19 Oct 2026)": [
+            ("Deportivo de A Coruña", "Levante Unión Deportiva"),
+            ("Espanyol", "Atletico Madrid"),
+            ("Villarreal Club de Fútbol", "Elche Club de Fútbol"),
+            ("Real Betis Balompié", "Barcelona"),
+            ("Valencia Club de Fútbol", "Athletic Club"),
+            ("Osasuna", "Real Racing Club de Santander"),
+            ("Real Club Celta de Vigo", "Deportivo Alavés"),
+            ("Málaga Club de Fútbol", "Real Sociedad de Fútbol"),
+            ("Real Madrid", "Sevilla Fútbol Club"),
+            ("Getafe Club de Fútbol", "Rayo Vallecano de Madrid")
+        ],
+        "Jornada 10 (23-26 Oct 2026)": [
+            ("Deportivo Alavés", "Málaga Club de Fútbol"),
+            ("Rayo Vallecano de Madrid", "Elche Club de Fútbol"),
+            ("Real Racing Club de Santander", "Espanyol"),
+            ("Valencia Club de Fútbol", "Villarreal Club de Fútbol"),
+            ("Atletico Madrid", "Real Club Deportivo de A Coruña"),
+            ("Athletic Club", "Getafe Club de Fútbol"),
+            ("Real Club Celta de Vigo", "Real Betis Balompié"),
+            ("Real Sociedad de Fútbol", "Levante Unión Deportiva"),
+            ("Barcelona", "Real Madrid"),
+            ("Sevilla Fútbol Club", "Osasuna")
+        ]
+    }
 }
 
 # ==========================================
-# 2. GENERADOR DE CALENDARIO DINÁMICO (38 JORNADAS)
-# ==========================================
-def generar_calendario_oficial(equipos):
-    n = len(equipos)
-    if n < 4:
-        return {}
-    
-    eqs = list(equipos)
-    if n % 2 != 0:
-        eqs.append("Descansa")
-    
-    num_eqs = len(eqs)
-    num_jornadas = 2 * (num_eqs - 1)
-    calendario = {}
-    
-    match_list = eqs[:]
-    for j in range(num_jornadas):
-        jornada_key = f"Jornada {j + 1}"
-        partidos = []
-        mid = num_eqs // 2
-        for i in range(mid):
-            casa = match_list[i]
-            fuera = match_list[num_eqs - 1 - i]
-            if j >= num_eqs - 1:
-                casa, fuera = fuera, casa
-            if casa != "Descansa" and fuera != "Descansa":
-                partidos.append((casa, fuera))
-        
-        calendario[jornada_key] = partidos
-        match_list = [match_list[0]] + [match_list[-1]] + match_list[1:-1]
-        
-    return calendario
-
-# ==========================================
-# 3. CONECTOR DE DATOS Y EXTRACCIÓN DINÁMICA
+# 2. CONECTOR DE DATOS Y NORMALIZACIÓN
 # ==========================================
 @st.cache_data(ttl=3600)
 def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
@@ -185,6 +180,18 @@ def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
             'HS': 'tiros_tot_l', 'AS': 'tiros_tot_v', 'HC': 'HC', 'AC': 'AC', 'HY': 'HY', 'AY': 'AY'
         })
         df = df.dropna(subset=['local', 'visitante', 'goles_l', 'goles_v']).copy()
+        
+        # Mapeo limpio para unificar nombres breves de la API con los oficiales
+        mapping_nombres = {
+            "Alaves": "Deportivo Alavés", "Athletic Bilbao": "Athletic Club", "Celta": "Real Club Celta de Vigo",
+            "Deportivo": "Real Club Deportivo de A Coruña", "Racing Santander": "Real Racing Club de Santander",
+            "Sociedad": "Real Sociedad de Fútbol", "Vallecano": "Rayo Vallecano de Madrid", "Betis": "Real Betis Balompié",
+            "Levante": "Levante Unión Deportiva", "Malaga": "Málaga Club de Fútbol", "Elche": "Elche Club de Fútbol",
+            "Sevilla": "Sevilla Fútbol Club", "Villarreal": "Villarreal Club de Fútbol", "Getafe": "Getafe Club de Fútbol"
+        }
+        df['local'] = df['local'].replace(mapping_nombres)
+        df['visitante'] = df['visitante'].replace(mapping_nombres)
+
         df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce')
         df = df.dropna(subset=['fecha']).sort_values('fecha')
 
@@ -218,7 +225,7 @@ def calcular_elo_con_margen(df, ventaja_campo=60.0):
     return elos
 
 # ==========================================
-# 4. MOTOR ESTADÍSTICO DE POISSON
+# 3. MOTOR ESTADÍSTICO DE POISSON
 # ==========================================
 def obtener_metricas_automaticas(df, equipo):
     df = df.copy()
@@ -346,7 +353,7 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
     }
 
 # ==========================================
-# 5. INTERFAZ PRINCIPAL
+# 4. INTERFAZ PRINCIPAL
 # ==========================================
 st.markdown("<h1 style='text-align: center; font-size: 1.8rem; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 0px;'>Opta Analytics <span style='color: #0071e3;'>Pro</span></h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #86868b; font-size: 0.85rem; margin-bottom: 25px;'>Advanced Bayesian Engine & Live Market Value</p>", unsafe_allow_html=True)
@@ -368,8 +375,8 @@ if df_hist.empty:
 
 equipos_lista = sorted(list(elos_dict.keys()))
 
-# Pestañas principales (Análisis Táctico Individual + Selector Manual de Jornadas 1-38)
-tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico Individual", "📅 Selector Manual de Jornadas (1 - 38)"])
+# Pestañas principales
+tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico Individual", "📅 Calendario Oficial de Jornadas"])
 
 with tab_partido:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -409,23 +416,30 @@ with tab_partido:
 
 with tab_jornada:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Selector Manual de Jornadas (1 a 38) — {liga_sel}</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Calendario Oficial — {liga_sel}</h3>", unsafe_allow_html=True)
     
-    calendario_completo = generar_calendario_oficial(equipos_lista)
+    calendario_liga = CALENDARIOS_OFICIALES.get(cod_liga_actual, {})
     
-    if calendario_completo:
-        jornada_elegida = st.selectbox("Elige la Jornada que deseas analizar:", list(calendario_completo.keys()))
-        partidos_jornada = calendario_completo[jornada_elegida]
-        
+    if calendario_liga:
+        jornada_elegida = st.selectbox("Selecciona la Jornada Oficial:", list(calendario_liga.keys()))
+        partidos_jornada = calendario_liga[jornada_elegida]
+    else:
+        st.info(f"Para {liga_sel}, puedes configurar los partidos de la jornada seleccionando el enfrentamiento exacto o utilizando el Análisis Táctico Individual.")
+        partidos_jornada = []
+
+    if partidos_jornada:
         filas_jornada = []
         for l, v in partidos_jornada:
-            if l in elos_dict and v in elos_dict:
-                ml = obtener_metricas_automaticas(df_hist, l)
-                mv = obtener_metricas_automaticas(df_hist, v)
-                rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l], elos_dict[v], campo_neutral=(cod_liga_actual=="UCL"))
+            l_match = next((eq for eq in elos_dict if l.lower() in eq.lower() or eq.lower() in l.lower()), l)
+            v_match = next((eq for eq in elos_dict if v.lower() in eq.lower() or eq.lower() in l.lower()), v)
+            
+            if l_match in elos_dict and v_match in elos_dict:
+                ml = obtener_metricas_automaticas(df_hist, l_match)
+                mv = obtener_metricas_automaticas(df_hist, v_match)
+                rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l_match], elos_dict[v_match], campo_neutral=(cod_liga_actual=="UCL"))
                 
                 filas_jornada.append({
-                    "Encuentro": f"{l} vs {v}",
+                    "Encuentro": f"{l_match} vs {v_match}",
                     "Quiniela (1X2)": rj['quiniela'],
                     "Confianza": rj['opinion'].split()[0],
                     "1 (%)": f"{rj['p1']*100:.1f}%", 
@@ -439,6 +453,4 @@ with tab_jornada:
         if filas_jornada:
             st.dataframe(pd.DataFrame(filas_jornada), use_container_width=True, hide_index=True)
         else:
-            st.warning("No hay encuentros disponibles en esta jornada.")
-    else:
-        st.warning("No hay suficientes equipos en esta competición para generar el calendario.")
+            st.warning("No hay suficientes datos de encuentros cruzados para esta jornada.")
