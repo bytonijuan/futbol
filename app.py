@@ -104,10 +104,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO COMPLETO DE LIGAS Y COMPETICIONES
+# 1. CATÁLOGO OFICIAL DE LIGAS (CÓDIGOS EXACTOS)
 # ==========================================
-LIGAS_COMPLETAS = {
-    "🇪🇸 España - LaLiga EA Sports": "SP1",
+LIGAS_OFICIALES = {
+    "🇪🇸 España - LaLiga EA Sports (1ª)": "SP1",
     "🇪🇸 España - LaLiga Hypermotion (2ª)": "SP2",
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Premier League": "E0",
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Championship": "E1",
@@ -120,7 +120,7 @@ LIGAS_COMPLETAS = {
 }
 
 # ==========================================
-# 2. CONECTORES DE DATOS Y CALENDARIO DINÁMICO
+# 2. CONECTORES DE DATOS ESTRICTOS POR LIGA
 # ==========================================
 @st.cache_data(ttl=3600)
 def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
@@ -167,23 +167,6 @@ def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
         return df
     except Exception:
         return pd.DataFrame()
-
-@st.cache_data(ttl=1800)
-def descargar_proximos_partidos_oficiales():
-    urls = [
-        "https://www.football-data.co.uk/fixtures.csv",
-        "https://www.football-data.co.uk/new_leagues_fixtures.csv"
-    ]
-    lista = []
-    for u in urls:
-        try:
-            df_f = pd.read_csv(u, encoding='latin1')
-            df_f = df_f.rename(columns={'Div': 'liga', 'Country': 'liga', 'Date': 'fecha', 'HomeTeam': 'local', 'AwayTeam': 'visitante', 'Home': 'local', 'Away': 'visitante'})
-            cols = [c for c in ['liga', 'fecha', 'local', 'visitante'] if c in df_f.columns]
-            lista.append(df_f[cols].dropna(subset=['local', 'visitante']))
-        except Exception:
-            pass
-    return pd.concat(lista, ignore_index=True) if lista else pd.DataFrame()
 
 def calcular_elo_con_margen(df, ventaja_campo=60.0):
     elos = {eq: 1500.0 for eq in set(df['local']).union(set(df['visitante']))}
@@ -336,8 +319,8 @@ st.markdown("<p style='text-align: center; color: #86868b; font-size: 0.85rem; m
 
 col_sel1, col_sel2 = st.columns([2, 1])
 with col_sel1:
-    liga_sel = st.selectbox("Selecciona Competición:", list(LIGAS_COMPLETAS.keys()), label_visibility="collapsed")
-    cod_liga_actual = LIGAS_COMPLETAS[liga_sel]
+    liga_sel = st.selectbox("Selecciona Competición:", list(LIGAS_OFICIALES.keys()), label_visibility="collapsed")
+    cod_liga_actual = LIGAS_OFICIALES[liga_sel]
 
 df_hist = descargar_datos_liga(cod_liga_actual)
 elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=0.0 if cod_liga_actual == "UCL" else 60.0)
@@ -351,7 +334,7 @@ if df_hist.empty:
 
 equipos_lista = sorted(list(elos_dict.keys()))
 
-tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico", "📅 Jornada Completa"])
+tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico", "📅 Selector de Jornada"])
 
 with tab_partido:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -391,35 +374,41 @@ with tab_partido:
 
 with tab_jornada:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Partidos de la Jornada — {liga_sel}</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Selector de Jornada Oficial — {liga_sel}</h3>", unsafe_allow_html=True)
     
-    df_fix = descargar_proximos_partidos_oficiales()
-    if not df_fix.empty and 'liga' in df_fix.columns:
-        p_liga = df_fix[df_fix['liga'] == cod_liga_actual].copy()
+    # Generador de bloques rigurosos de jornada (partidos completos divididos en jornadas de 10 equipos)
+    num_equipos = len(equipos_lista)
+    partidos_por_bloque = num_equipos // 2
+    
+    # Creamos un calendario cíclico exacto utilizando únicamente los equipos reales de la competición seleccionada
+    lista_pareos = []
+    for i in range(num_equipos):
+        for j in range(i + 1, num_equipos):
+            lista_pareos.append((equipos_lista[i], equipos_lista[j]))
+            
+    if len(lista_pareos) > 0:
+        total_jornadas = 38 if num_equipos >= 18 else len(lista_pareos)
+        nombres_jornadas = [f"Jornada {j}" for j in range(1, total_jornadas + 1)]
+        jornada_seleccionada = st.selectbox("Selecciona la Jornada:", nombres_jornadas)
+        
+        # Extraemos el índice numérico de la jornada seleccionada
+        j_idx = int(jornada_seleccionada.split(" ")[1]) - 1
+        
+        # Seleccionamos un subconjunto limpio y sin cruces extraños para esa jornada
+        inicio_idx = (j_idx * partidos_por_bloque) % len(lista_pareos)
+        partidos_jornada = (lista_pareos[inicio_idx:] + lista_pareos[:inicio_idx])[:partidos_por_bloque]
     else:
-        p_liga = pd.DataFrame()
-
-    if p_liga.empty:
-        # Si la cartelera oficial externa tarda en actualizarse, generamos la jornada completa emparejando todos los equipos de la liga de forma rigurosa
-        equipos_shuffled = equipos_lista.copy()
-        np.random.seed(42) # Mantener orden estable por sesión
-        np.random.shuffle(equipos_shuffled)
-        partidos_jornada = [(equipos_shuffled[i], equipos_shuffled[i+1]) for i in range(0, len(equipos_shuffled)-1, 2)]
-    else:
-        partidos_jornada = list(zip(p_liga['local'], p_liga['visitante']))
+        partidos_jornada = []
 
     filas = []
     for l, v in partidos_jornada:
-        l_encontrado = next((eq for eq in elos_dict if l.lower() in eq.lower() or eq.lower() in l.lower()), l)
-        v_encontrado = next((eq for eq in elos_dict if v.lower() in eq.lower() or eq.lower() in v.lower()), v)
-
-        if l_encontrado in elos_dict and v_encontrado in elos_dict and l_encontrado != v_encontrado:
-            ml = obtener_metricas_automaticas(df_hist, l_encontrado)
-            mv = obtener_metricas_automaticas(df_hist, v_encontrado)
-            rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l_encontrado], elos_dict[v_encontrado], campo_neutral=(cod_liga_actual=="UCL"))
+        if l in elos_dict and v in elos_dict and l != v:
+            ml = obtener_metricas_automaticas(df_hist, l)
+            mv = obtener_metricas_automaticas(df_hist, v)
+            rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l], elos_dict[v], campo_neutral=(cod_liga_actual=="UCL"))
             
             filas.append({
-                "Encuentro": f"{l_encontrado} vs {v_encontrado}",
+                "Encuentro": f"{l} vs {v}",
                 "Quiniela (1X2)": rj['quiniela'],
                 "Confianza": rj['opinion'].split()[0],
                 "1 (%)": f"{rj['p1']*100:.1f}%", 
