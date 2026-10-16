@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from scipy.stats import poisson
+import altair as alt
 from datetime import datetime, timedelta
 
 # Configuración inicial de la página
@@ -65,29 +66,6 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* Pestañas estilo Apple Segmented Control */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 6px;
-        background-color: rgba(28, 28, 30, 0.6);
-        padding: 4px;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: transparent;
-        color: #86868b;
-        border-radius: 9px;
-        font-weight: 600;
-        padding: 8px 20px;
-        font-size: 0.85rem;
-        transition: all 0.2s ease;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #0071e3 !important;
-        color: #ffffff !important;
-        box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
-    }
-
     .stSelectbox label, .stRadio label {
         color: #86868b !important;
         font-weight: 600;
@@ -105,7 +83,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO Y CALENDARIOS OFICIALES
+# 1. CATÁLOGO DE LIGAS Y CALENDARIOS OFICIALES
 # ==========================================
 LIGAS_OFICIALES = {
     "🇪🇸 España - LaLiga EA Sports (1ª)": "SP1",
@@ -118,7 +96,6 @@ LIGAS_OFICIALES = {
     "🏆 UEFA Champions League": "UCL"
 }
 
-# Calendarios Oficiales usando los nombres exactos de los equipos en los CSVs
 CALENDARIOS_OFICIALES = {
     "SP1": {
         "Jornada 9 (16-19 Oct 2026)": [
@@ -199,7 +176,7 @@ def calcular_elo_con_margen(df, ventaja_campo=60.0):
     return elos
 
 # ==========================================
-# 3. MOTOR ESTADÍSTICO DE POISSON
+# 3. MOTOR ESTADÍSTICO Y MATRICIAL
 # ==========================================
 def obtener_metricas_automaticas(df, equipo):
     df = df.copy()
@@ -323,7 +300,8 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
         'p1': p1, 'px': px_emp, 'p2': p2, 'quiniela': quiniela,
         'mas_dos_goles': over_25, 'ambos_marcaran': btts_si,
         'marcador_rec': marcador_recomendado, 'prob_rec': prob_recomendado,
-        'opinion': opinion, 'detalle_opinion': detalle
+        'opinion': opinion, 'detalle_opinion': detalle,
+        'matriz': matriz
     }
 
 # ==========================================
@@ -332,15 +310,24 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
 st.markdown("<h1 style='text-align: center; font-size: 1.8rem; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 0px;'>Opta Analytics <span style='color: #0071e3;'>Pro</span></h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #86868b; font-size: 0.85rem; margin-bottom: 25px;'>Advanced Bayesian Engine & Live Market Value</p>", unsafe_allow_html=True)
 
-col_sel1, col_sel2 = st.columns([2, 1])
-with col_sel1:
-    liga_sel = st.selectbox("Selecciona Competición:", list(LIGAS_OFICIALES.keys()), label_visibility="collapsed")
+modo = st.radio(
+    "Modo de Trabajo:",
+    ["📊 Análisis Táctico Libre (Cualquier Equipo)", "📅 Módulo de Jornada Oficial"],
+    horizontal=True,
+    label_visibility="collapsed"
+)
+
+st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+
+col_l1, col_l2 = st.columns([2, 1])
+with col_l1:
+    liga_sel = st.selectbox("Selecciona Competición:", list(LIGAS_OFICIALES.keys()))
     cod_liga_actual = LIGAS_OFICIALES[liga_sel]
 
 df_hist = descargar_datos_liga(cod_liga_actual)
 elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=0.0 if cod_liga_actual == "UCL" else 60.0)
 
-with col_sel2:
+with col_l2:
     campo_neutral = st.checkbox("🏟️ Sede Neutral", value=(cod_liga_actual == "UCL"))
 
 if df_hist.empty:
@@ -349,18 +336,20 @@ if df_hist.empty:
 
 equipos_lista = sorted(list(elos_dict.keys()))
 
-# Pestañas principales
-tab_partido, tab_jornada = st.tabs(["📊 Análisis Táctico Individual", "📅 Calendario Oficial de Jornadas"])
-
-with tab_partido:
+# ==========================================
+# MÓDULO 1: ANÁLISIS TÁCTICO LIBRE CON GRÁFICOS Y RESUMEN AVANZADO
+# ==========================================
+if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<h3 style='font-size: 1.1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 15px;'>⚡ Enfrentamiento Directo y Toma de Decisiones</h3>", unsafe_allow_html=True)
+    
     c_eq1, c_vs, c_eq2 = st.columns([2, 0.4, 2])
     with c_eq1:
-        eq_local = st.selectbox("Local:", equipos_lista, index=0)
+        eq_local = st.selectbox("Equipo Local:", equipos_lista, index=0)
     with c_vs:
         st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
     with c_eq2:
-        eq_visit = st.selectbox("Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
+        eq_visit = st.selectbox("Equipo Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
 
     m_loc = obtener_metricas_automaticas(df_hist, eq_local)
     m_vis = obtener_metricas_automaticas(df_hist, eq_visit)
@@ -369,6 +358,7 @@ with tab_partido:
 
     res = ejecutar_modelo_analitico(m_loc, m_vis, elo_l_val, elo_v_val, campo_neutral=campo_neutral)
 
+    # Banner de Opinión
     st.markdown(f"""
     <div style="background: rgba(28, 28, 30, 0.6); backdrop-filter: blur(10px); border-left: 4px solid {'#34c759' if '🟢' in res['opinion'] else ('#ff9f0a' if '🟡' in res['opinion'] else '#ff453a')}; padding: 14px 18px; border-radius: 12px; margin: 20px 0;">
         <div style="font-weight: 600; font-size: 0.9rem; color: #f5f5f7; margin-bottom: 3px;">{res['opinion']}</div>
@@ -376,6 +366,7 @@ with tab_partido:
     </div>
     """, unsafe_allow_html=True)
 
+    # Tarjetas de Métricas Principales
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
         st.markdown(f"""<div class="metric-card"><div class="metric-label">1 - {eq_local}</div><div class="metric-value">{res['p1']*100:.1f}%</div><div class="metric-sub">Cuota: {1/res['p1']:.2f}</div></div>""", unsafe_allow_html=True)
@@ -388,9 +379,64 @@ with tab_partido:
     with m5:
         st.markdown(f"""<div class="metric-card"><div class="metric-label">Ambos marcarán</div><div class="metric-value">{res['ambos_marcaran']*100:.1f}%</div><div class="metric-sub">BTTS Ratio</div></div>""", unsafe_allow_html=True)
 
-with tab_jornada:
+    st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+    st.markdown("<h4 style='font-size: 0.95rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📋 Resumen Ejecutivo del Encuentro</h4>", unsafe_allow_html=True)
+    
+    # Tabla resumen estilo jornada
+    df_resumen_individual = pd.DataFrame([{
+        "Encuentro": f"{eq_local} vs {eq_visit}",
+        "Quiniela (1X2)": res['quiniela'],
+        "Confianza": res['opinion'].split()[0],
+        "1 (%)": f"{res['p1']*100:.1f}%", 
+        "X (%)": f"{res['px']*100:.1f}%", 
+        "2 (%)": f"{res['p2']*100:.1f}%",
+        "🎯 Sugerido": f"{res['marcador_rec']} ({res['prob_rec']*100:.1f}%)",
+        "Más de dos goles": f"{res['mas_dos_goles']*100:.1f}%", 
+        "Ambos marcarán": f"{res['ambos_marcaran']*100:.1f}%"
+    }])
+    st.dataframe(df_resumen_individual, use_container_width=True, hide_index=True)
+
+    st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
+    st.markdown("<h4 style='font-size: 0.95rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📈 Gráficos de Apoyo y Factores Clave para Decisiones</h4>", unsafe_allow_html=True)
+
+    col_g1, col_g2 = st.columns(2)
+
+    with col_g1:
+        st.markdown("<p style='font-size: 0.8rem; color: #86868b; font-weight: 600;'>Distribución de Goles Esperados (λ Local vs Visitante)</p>", unsafe_allow_html=True)
+        goles_df = pd.DataFrame({
+            'Goles': list(range(5)) * 2,
+            'Probabilidad': list(poisson.pmf(range(5), res['lam_l'])) + list(poisson.pmf(range(5), res['lam_v'])),
+            'Equipo': [eq_local]*5 + [eq_visit]*5
+        })
+        chart_goles = alt.Chart(goles_df).mark_bar(opacity=0.8, cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            x=alt.X('Goles:O', title='Número de Goles'),
+            y=alt.Y('Probabilidad:Q', title='Probabilidad'),
+            color=alt.Color('Equipo:N', scale=alt.Scale(range=['#0071e3', '#34c759'])),
+            column='Equipo:N'
+        ).properties(width=220, height=180).configure_view(stroke=None).configure_background(fill='transparent')
+        st.altair_chart(chart_goles, use_container_width=True)
+
+    with col_g2:
+        st.markdown("<p style='font-size: 0.8rem; color: #86868b; font-weight: 600;'>Métricas Tácticas y Descanso (Ayuda de Decisión)</p>", unsafe_allow_html=True)
+        metrics_df = pd.DataFrame({
+            'Factor': ['Ataque Casa/Fuera', 'Defensa (Inv.)', 'Días Descanso', 'Forma Reciente'],
+            eq_local: [m_loc['at_casa'], 2.0 - m_loc['def_casa'], m_loc['dias_descanso']/14.0, 1.0 + m_loc['forma']],
+            eq_visit: [m_vis['at_fuera'], 2.0 - m_vis['def_fuera'], m_vis['dias_descanso']/14.0, 1.0 + m_vis['forma']]
+        }).melt('Factor', var_name='Equipo', value_name='Score')
+
+        chart_radar = alt.Chart(metrics_df).mark_bar().encode(
+            x=alt.X('Score:Q', title='Índice Normalizado'),
+            y=alt.Y('Factor:N', sort=None, title=''),
+            color=alt.Color('Equipo:N', scale=alt.Scale(range=['#0071e3', '#ff9f0a']))
+        ).properties(width=300, height=180).configure_view(stroke=None).configure_background(fill='transparent')
+        st.altair_chart(chart_radar, use_container_width=True)
+
+# ==========================================
+# MÓDULO 2: MÓDULO DE JORNADA OFICIAL
+# ==========================================
+else:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='font-size: 1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📅 Calendario Oficial — {liga_sel}</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='font-size: 1.1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 15px;'>📅 Cuadro Resumen de Jornada — {liga_sel}</h3>", unsafe_allow_html=True)
     
     calendario_liga = CALENDARIOS_OFICIALES.get(cod_liga_actual, {})
     
@@ -398,15 +444,14 @@ with tab_jornada:
         jornada_elegida = st.selectbox("Selecciona la Jornada Oficial:", list(calendario_liga.keys()))
         partidos_jornada = calendario_liga[jornada_elegida]
     else:
-        st.info("Para esta competición, puedes utilizar la pestaña de 'Análisis Táctico Individual' para analizar cualquier enfrentamiento.")
+        st.info("Para esta competición, utiliza el modo de 'Análisis Táctico Libre' para enfrentar a cualquier equipo de la categoría.")
         partidos_jornada = []
 
     if partidos_jornada:
         filas_jornada = []
         for l, v in partidos_jornada:
-            # Búsqueda independiente y estricta para evitar duplicaciones
-            l_match = next((eq for eq in elos_dict if l.lower() == eq.lower() or l.lower() in eq.lower()), l)
-            v_match = next((eq for eq in elos_dict if v.lower() == eq.lower() or v.lower() in eq.lower()), v)
+            l_match = l if l in elos_dict else next((eq for eq in elos_dict if l.lower() in eq.lower()), l)
+            v_match = v if v in elos_dict else next((eq for eq in elos_dict if v.lower() in eq.lower()), v)
             
             if l_match in elos_dict and v_match in elos_dict and l_match != v_match:
                 ml = obtener_metricas_automaticas(df_hist, l_match)
