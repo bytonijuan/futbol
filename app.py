@@ -176,7 +176,7 @@ def calcular_elo_con_margen(df, ventaja_campo=60.0):
     return elos
 
 # ==========================================
-# 3. MOTOR ESTADÍSTICO Y MATRICIAL
+# 3. MOTOR ESTADÍSTICO Y RECOMENDACIÓN DE APUESTA
 # ==========================================
 def obtener_metricas_automaticas(df, equipo):
     df = df.copy()
@@ -220,7 +220,7 @@ def obtener_metricas_automaticas(df, equipo):
         'dias_descanso': dias_descanso
     }
 
-def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, rho=-0.13):
+def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, eq_local, eq_visit, campo_neutral=False, rho=-0.13):
     desc_l = m_loc['dias_descanso']
     desc_v = m_vis['dias_descanso']
 
@@ -295,13 +295,26 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, campo_neutral=False, r
         opinion = "🔴 ALTA INCERTIDUMBRE"
         detalle = "Escenario de alta varianza."
 
+    # Lógica inteligente para definir "Qué apostar"
+    max_p = max(p1, px_emp, p2)
+    if max_p == p1:
+        apuesta_val = f"Victoria {eq_local} (1)" if p1 > 0.45 else f"1X (Doble Oportunidad)"
+    elif max_p == p2:
+        apuesta_val = f"Victoria {eq_visit} (2)" if p2 > 0.45 else f"X2 (Doble Oportunidad)"
+    else:
+        apuesta_val = "Empate (X) o Menos 2.5 Goles"
+
+    if over_25 > 0.58:
+        apuesta_val += " + Más 2.5 Goles"
+    elif over_25 < 0.40:
+        apuesta_val += " + Menos 3.5 Goles"
+
     return {
         'lam_l': lam_l, 'lam_v': lam_v, 'goles_esp_tot': lam_l + lam_v,
         'p1': p1, 'px': px_emp, 'p2': p2, 'quiniela': quiniela,
         'mas_dos_goles': over_25, 'ambos_marcaran': btts_si,
         'marcador_rec': marcador_recomendado, 'prob_rec': prob_recomendado,
-        'opinion': opinion, 'detalle_opinion': detalle,
-        'matriz': matriz
+        'opinion': opinion, 'detalle_opinion': detalle, 'apuesta_val': apuesta_val
     }
 
 # ==========================================
@@ -337,7 +350,7 @@ if df_hist.empty:
 equipos_lista = sorted(list(elos_dict.keys()))
 
 # ==========================================
-# MÓDULO 1: ANÁLISIS TÁCTICO LIBRE CON GRÁFICOS Y RESUMEN AVANZADO
+# MÓDULO 1: ANÁLISIS TÁCTICO LIBRE CON COLUMNA DE APUESTA
 # ==========================================
 if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -356,7 +369,7 @@ if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
     elo_l_val = elos_dict.get(eq_local, 1500.0)
     elo_v_val = elos_dict.get(eq_visit, 1500.0)
 
-    res = ejecutar_modelo_analitico(m_loc, m_vis, elo_l_val, elo_v_val, campo_neutral=campo_neutral)
+    res = ejecutar_modelo_analitico(m_loc, m_vis, elo_l_val, elo_v_val, eq_local, eq_visit, campo_neutral=campo_neutral)
 
     # Banner de Opinión
     st.markdown(f"""
@@ -380,9 +393,8 @@ if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
         st.markdown(f"""<div class="metric-card"><div class="metric-label">Ambos marcarán</div><div class="metric-value">{res['ambos_marcaran']*100:.1f}%</div><div class="metric-sub">BTTS Ratio</div></div>""", unsafe_allow_html=True)
 
     st.markdown("<div style='height: 25px;'></div>", unsafe_allow_html=True)
-    st.markdown("<h4 style='font-size: 0.95rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📋 Resumen Ejecutivo del Encuentro</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='font-size: 0.95rem; font-weight: 600; color: #f5f5f7; margin-bottom: 12px;'>📋 Resumen Ejecutivo y Recomendación de Apuesta</h4>", unsafe_allow_html=True)
     
-    # Tabla resumen estilo jornada
     df_resumen_individual = pd.DataFrame([{
         "Encuentro": f"{eq_local} vs {eq_visit}",
         "Quiniela (1X2)": res['quiniela'],
@@ -391,8 +403,7 @@ if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
         "X (%)": f"{res['px']*100:.1f}%", 
         "2 (%)": f"{res['p2']*100:.1f}%",
         "🎯 Sugerido": f"{res['marcador_rec']} ({res['prob_rec']*100:.1f}%)",
-        "Más de dos goles": f"{res['mas_dos_goles']*100:.1f}%", 
-        "Ambos marcarán": f"{res['ambos_marcaran']*100:.1f}%"
+        "💡 Qué Apostar": res['apuesta_val']
     }])
     st.dataframe(df_resumen_individual, use_container_width=True, hide_index=True)
 
@@ -413,7 +424,7 @@ if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
             y=alt.Y('Probabilidad:Q', title='Probabilidad'),
             color=alt.Color('Equipo:N', scale=alt.Scale(range=['#0071e3', '#34c759'])),
             column='Equipo:N'
-        ).properties(width=220, height=180).configure_view(stroke=None).configure_background(fill='transparent')
+        ).properties(width=220, height=180).configure_view(stroke=None)
         st.altair_chart(chart_goles, use_container_width=True)
 
     with col_g2:
@@ -428,7 +439,7 @@ if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
             x=alt.X('Score:Q', title='Índice Normalizado'),
             y=alt.Y('Factor:N', sort=None, title=''),
             color=alt.Color('Equipo:N', scale=alt.Scale(range=['#0071e3', '#ff9f0a']))
-        ).properties(width=300, height=180).configure_view(stroke=None).configure_background(fill='transparent')
+        ).properties(width=300, height=180).configure_view(stroke=None)
         st.altair_chart(chart_radar, use_container_width=True)
 
 # ==========================================
@@ -455,8 +466,8 @@ else:
             
             if l_match in elos_dict and v_match in elos_dict and l_match != v_match:
                 ml = obtener_metricas_automaticas(df_hist, l_match)
-                mv = obtener_metricas_automaticas(df_hist, v_match)
-                rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l_match], elos_dict[v_match], campo_neutral=False)
+                mv = obtener_metricas_automaticas(df_match, v_match) if 'v_match' in locals() else obtener_metricas_automaticas(df_hist, v_match)
+                rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l_match], elos_dict[v_match], l_match, v_match, campo_neutral=False)
                 
                 filas_jornada.append({
                     "Encuentro": f"{l_match} vs {v_match}",
@@ -466,8 +477,7 @@ else:
                     "X (%)": f"{rj['px']*100:.1f}%", 
                     "2 (%)": f"{rj['p2']*100:.1f}%",
                     "🎯 Sugerido": f"{rj['marcador_rec']} ({rj['prob_rec']*100:.1f}%)",
-                    "Más de dos goles": f"{rj['mas_dos_goles']*100:.1f}%", 
-                    "Ambos marcarán": f"{rj['ambos_marcaran']*100:.1f}%"
+                    "💡 Qué Apostar": rj['apuesta_val']
                 })
         
         if filas_jornada:
