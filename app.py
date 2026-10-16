@@ -83,17 +83,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO DE LIGAS (INCLUYE MODO GLOBAL)
+# 1. CATÁLOGO DE LIGAS INDIVIDUALES
 # ==========================================
-LIGAS_OFICIALES = {
-    "🌍 Global - Todas las Ligas Top (Cruzados)": "GLOBAL",
+LIGAS_MAPA = {
     "🇪🇸 España - LaLiga EA Sports (1ª)": "SP1",
     "🇪🇸 España - LaLiga Hypermotion (2ª)": "SP2",
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Premier League": "E0",
     "🇮🇹 Italia - Serie A": "I1",
     "🇩🇪 Alemania - Bundesliga": "D1",
     "🇫🇷 Francia - Ligue 1": "F1",
-    "🇵🇹 Portugal - Primeira Liga": "P1",
+    "🇵🇹 Portugal - Primeira Liga": "P1"
+}
+
+LIGAS_OFICIALES = {
+    "🌍 Global - Partidos Cruzados por Ligas": "GLOBAL",
+    **LIGAS_MAPA,
     "🏆 UEFA Champions League": "UCL"
 }
 
@@ -113,31 +117,21 @@ CALENDARIOS_OFICIALES = {
 }
 
 # ==========================================
-# 2. CONECTOR DE DATOS (SOPORTE GLOBAL)
+# 2. CONECTOR DE DATOS UNIFICADO
 # ==========================================
 @st.cache_data(ttl=3600)
 def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
     try:
-        if codigo_liga in ["UCL", "GLOBAL"]:
-            codigos = ["SP1", "E0", "I1", "D1", "F1", "P1"] if codigo_liga == "GLOBAL" else ["SP1", "E0", "I1", "D1"]
-            dfs = []
-            for c in codigos:
-                for t in [temp_prev, temp_act]:
-                    url = f"https://www.football-data.co.uk/mmz4281/{t}/{c}.csv"
-                    try:
-                        dfs.append(pd.read_csv(url, encoding='latin1'))
-                    except Exception:
-                        pass
-            df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
-        else:
-            dfs = []
+        codigos = list(LIGAS_MAPA.values()) if codigo_liga in ["UCL", "GLOBAL"] else [codigo_liga]
+        dfs = []
+        for c in codigos:
             for t in [temp_prev, temp_act]:
+                url = f"https://www.football-data.co.uk/mmz4281/{t}/{c}.csv"
                 try:
-                    url = f"https://www.football-data.co.uk/mmz4281/{t}/{codigo_liga}.csv"
                     dfs.append(pd.read_csv(url, encoding='latin1'))
                 except Exception:
                     pass
-            df = pd.concat(dfs, ignore_index=True)
+        df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
         if df.empty:
             return pd.DataFrame()
@@ -164,6 +158,24 @@ def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
         return df
     except Exception:
         return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def descargar_datos_individuales(codigo_liga):
+    try:
+        dfs = []
+        for t in ["2526", "2627"]:
+            url = f"https://www.football-data.co.uk/mmz4281/{t}/{codigo_liga}.csv"
+            try:
+                dfs.append(pd.read_csv(url, encoding='latin1'))
+            except Exception:
+                pass
+        df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+        if df.empty:
+            return set()
+        df = df.rename(columns={'HomeTeam': 'local', 'AwayTeam': 'visitante'})
+        return sorted(list(set(df['local']).union(set(df['visitante']))))
+    except Exception:
+        return []
 
 def calcular_elo_con_margen(df, ventaja_campo=60.0):
     elos = {eq: 1500.0 for eq in set(df['local']).union(set(df['visitante']))}
@@ -351,22 +363,38 @@ if df_hist.empty:
     st.error("Error al sincronizar los datos de la competición.")
     st.stop()
 
-equipos_lista = sorted(list(elos_dict.keys()))
-
 # ==========================================
-# MÓDULO 1: ANÁLISIS TÁCTICO LIBRE (MULTILIGA)
+# MÓDULO 1: ANÁLISIS TÁCTICO LIBRE (CON SUBMENÚS DE LIGAS)
 # ==========================================
 if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     st.markdown("<h3 style='font-size: 1.1rem; font-weight: 600; color: #f5f5f7; margin-bottom: 15px;'>⚡ Enfrentamiento Directo y Toma de Decisiones</h3>", unsafe_allow_html=True)
     
-    c_eq1, c_vs, c_eq2 = st.columns([2, 0.4, 2])
-    with c_eq1:
-        eq_local = st.selectbox("Equipo Local:", equipos_lista, index=0)
-    with c_vs:
-        st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
-    with c_eq2:
-        eq_visit = st.selectbox("Equipo Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
+    if cod_liga_actual == "GLOBAL":
+        c_sub1, c_sub2 = st.columns(2)
+        with c_sub1:
+            liga_local_sel = st.selectbox("Liga del Equipo Local:", list(LIGAS_MAPA.keys()))
+            equipos_local_lista = descargar_datos_individuales(LIGAS_MAPA[liga_local_sel])
+        with c_sub2:
+            liga_visit_sel = st.selectbox("Liga del Equipo Visitante:", list(LIGAS_MAPA.keys()), index=min(1, len(LIGAS_MAPA)-1))
+            equipos_visit_lista = descargar_datos_individuales(LIGAS_MAPA[liga_visit_sel])
+
+        c_eq1, c_vs, c_eq2 = st.columns([2, 0.4, 2])
+        with c_eq1:
+            eq_local = st.selectbox("Equipo Local:", equipos_local_lista if equipos_local_lista else list(elos_dict.keys()), index=0)
+        with c_vs:
+            st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
+        with c_eq2:
+            eq_visit = st.selectbox("Equipo Visitante:", equipos_visit_lista if equipos_visit_lista else list(elos_dict.keys()), index=min(1, len(equipos_visit_lista)-1))
+    else:
+        equipos_lista = sorted(list(elos_dict.keys()))
+        c_eq1, c_vs, c_eq2 = st.columns([2, 0.4, 2])
+        with c_eq1:
+            eq_local = st.selectbox("Equipo Local:", equipos_lista, index=0)
+        with c_vs:
+            st.markdown("<div style='text-align: center; padding-top: 30px; color: #86868b; font-weight: 600;'>VS</div>", unsafe_allow_html=True)
+        with c_eq2:
+            eq_visit = st.selectbox("Equipo Visitante:", equipos_lista, index=min(1, len(equipos_lista)-1))
 
     m_loc = obtener_metricas_automaticas(df_hist, eq_local)
     m_vis = obtener_metricas_automaticas(df_hist, eq_visit)
