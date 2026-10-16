@@ -83,9 +83,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO DE LIGAS Y CALENDARIOS OFICIALES
+# 1. CATÁLOGO DE LIGAS (INCLUYE MODO GLOBAL)
 # ==========================================
 LIGAS_OFICIALES = {
+    "🌍 Global - Todas las Ligas Top (Cruzados)": "GLOBAL",
     "🇪🇸 España - LaLiga EA Sports (1ª)": "SP1",
     "🇪🇸 España - LaLiga Hypermotion (2ª)": "SP2",
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra - Premier League": "E0",
@@ -112,21 +113,22 @@ CALENDARIOS_OFICIALES = {
 }
 
 # ==========================================
-# 2. CONECTOR DE DATOS
+# 2. CONECTOR DE DATOS (SOPORTE GLOBAL)
 # ==========================================
 @st.cache_data(ttl=3600)
 def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
     try:
-        if codigo_liga == "UCL":
-            codigos = ["SP1", "E0", "I1", "D1"]
+        if codigo_liga in ["UCL", "GLOBAL"]:
+            codigos = ["SP1", "E0", "I1", "D1", "F1", "P1"] if codigo_liga == "GLOBAL" else ["SP1", "E0", "I1", "D1"]
             dfs = []
             for c in codigos:
-                url = f"https://www.football-data.co.uk/mmz4281/{temp_act}/{c}.csv"
-                try:
-                    dfs.append(pd.read_csv(url, encoding='latin1'))
-                except Exception:
-                    pass
-            df = pd.concat(dfs, ignore_index=True)
+                for t in [temp_prev, temp_act]:
+                    url = f"https://www.football-data.co.uk/mmz4281/{t}/{c}.csv"
+                    try:
+                        dfs.append(pd.read_csv(url, encoding='latin1'))
+                    except Exception:
+                        pass
+            df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
         else:
             dfs = []
             for t in [temp_prev, temp_act]:
@@ -136,6 +138,9 @@ def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
                 except Exception:
                     pass
             df = pd.concat(dfs, ignore_index=True)
+
+        if df.empty:
+            return pd.DataFrame()
 
         df = df.rename(columns={
             'Date': 'fecha', 'HomeTeam': 'local', 'AwayTeam': 'visitante',
@@ -176,7 +181,7 @@ def calcular_elo_con_margen(df, ventaja_campo=60.0):
     return elos
 
 # ==========================================
-# 3. MOTOR ESTADÍSTICO Y RECOMENDACIÓN DE APUESTA
+# 3. MOTOR ESTADÍSTICO Y RECOMENDACIÓN
 # ==========================================
 def obtener_metricas_automaticas(df, equipo):
     df = df.copy()
@@ -295,7 +300,6 @@ def ejecutar_modelo_analitico(m_loc, m_vis, elo_l, elo_v, eq_local, eq_visit, ca
         opinion = "🔴 ALTA INCERTIDUMBRE"
         detalle = "Escenario de alta varianza."
 
-    # Lógica inteligente para definir "Qué apostar"
     max_p = max(p1, px_emp, p2)
     if max_p == p1:
         apuesta_val = f"Victoria {eq_local} (1)" if p1 > 0.45 else f"1X (Doble Oportunidad)"
@@ -334,14 +338,14 @@ st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
 col_l1, col_l2 = st.columns([2, 1])
 with col_l1:
-    liga_sel = st.selectbox("Selecciona Competición:", list(LIGAS_OFICIALES.keys()))
+    liga_sel = st.selectbox("Selecciona Competición / Modo Global:", list(LIGAS_OFICIALES.keys()))
     cod_liga_actual = LIGAS_OFICIALES[liga_sel]
 
 df_hist = descargar_datos_liga(cod_liga_actual)
-elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=0.0 if cod_liga_actual == "UCL" else 60.0)
+elos_dict = calcular_elo_con_margen(df_hist, ventaja_campo=0.0 if cod_liga_actual in ["UCL", "GLOBAL"] else 60.0)
 
 with col_l2:
-    campo_neutral = st.checkbox("🏟️ Sede Neutral", value=(cod_liga_actual == "UCL"))
+    campo_neutral = st.checkbox("🏟️ Sede Neutral", value=(cod_liga_actual in ["UCL", "GLOBAL"]))
 
 if df_hist.empty:
     st.error("Error al sincronizar los datos de la competición.")
@@ -350,7 +354,7 @@ if df_hist.empty:
 equipos_lista = sorted(list(elos_dict.keys()))
 
 # ==========================================
-# MÓDULO 1: ANÁLISIS TÁCTICO LIBRE CON COLUMNA DE APUESTA
+# MÓDULO 1: ANÁLISIS TÁCTICO LIBRE (MULTILIGA)
 # ==========================================
 if modo == "📊 Análisis Táctico Libre (Cualquier Equipo)":
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -466,7 +470,7 @@ else:
             
             if l_match in elos_dict and v_match in elos_dict and l_match != v_match:
                 ml = obtener_metricas_automaticas(df_hist, l_match)
-                mv = obtener_metricas_automaticas(df_match, v_match) if 'v_match' in locals() else obtener_metricas_automaticas(df_hist, v_match)
+                mv = obtener_metricas_automaticas(df_hist, v_match)
                 rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l_match], elos_dict[v_match], l_match, v_match, campo_neutral=False)
                 
                 filas_jornada.append({
