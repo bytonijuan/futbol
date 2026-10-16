@@ -105,7 +105,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. CATÁLOGO DE LIGAS Y CALENDARIOS OFICIALES REALES
+# 1. CATÁLOGO Y CALENDARIOS OFICIALES
 # ==========================================
 LIGAS_OFICIALES = {
     "🇪🇸 España - LaLiga EA Sports (1ª)": "SP1",
@@ -118,38 +118,24 @@ LIGAS_OFICIALES = {
     "🏆 UEFA Champions League": "UCL"
 }
 
-# Calendarios Oficiales Validados (Jornada 9 y 10 reales de LaLiga)
+# Calendarios Oficiales usando los nombres exactos de los equipos en los CSVs
 CALENDARIOS_OFICIALES = {
     "SP1": {
         "Jornada 9 (16-19 Oct 2026)": [
-            ("Deportivo de A Coruña", "Levante Unión Deportiva"),
-            ("Espanyol", "Atletico Madrid"),
-            ("Villarreal Club de Fútbol", "Elche Club de Fútbol"),
-            ("Real Betis Balompié", "Barcelona"),
-            ("Valencia Club de Fútbol", "Athletic Club"),
-            ("Osasuna", "Real Racing Club de Santander"),
-            ("Real Club Celta de Vigo", "Deportivo Alavés"),
-            ("Málaga Club de Fútbol", "Real Sociedad de Fútbol"),
-            ("Real Madrid", "Sevilla Fútbol Club"),
-            ("Getafe Club de Fútbol", "Rayo Vallecano de Madrid")
+            ("Deportivo", "Levante"), ("Espanyol", "Atletico Madrid"), ("Villarreal", "Elche"),
+            ("Real Betis", "Barcelona"), ("Valencia", "Athletic Club"), ("Osasuna", "Racing Santander"),
+            ("Celta", "Alaves"), ("Malaga", "Real Sociedad"), ("Real Madrid", "Sevilla"), ("Getafe", "Rayo Vallecano")
         ],
         "Jornada 10 (23-26 Oct 2026)": [
-            ("Deportivo Alavés", "Málaga Club de Fútbol"),
-            ("Rayo Vallecano de Madrid", "Elche Club de Fútbol"),
-            ("Real Racing Club de Santander", "Espanyol"),
-            ("Valencia Club de Fútbol", "Villarreal Club de Fútbol"),
-            ("Atletico Madrid", "Real Club Deportivo de A Coruña"),
-            ("Athletic Club", "Getafe Club de Fútbol"),
-            ("Real Club Celta de Vigo", "Real Betis Balompié"),
-            ("Real Sociedad de Fútbol", "Levante Unión Deportiva"),
-            ("Barcelona", "Real Madrid"),
-            ("Sevilla Fútbol Club", "Osasuna")
+            ("Alaves", "Malaga"), ("Rayo Vallecano", "Elche"), ("Racing Santander", "Espanyol"),
+            ("Valencia", "Villarreal"), ("Atletico Madrid", "Deportivo"), ("Athletic Club", "Getafe"),
+            ("Celta", "Real Betis"), ("Real Sociedad", "Levante"), ("Barcelona", "Real Madrid"), ("Sevilla", "Osasuna")
         ]
     }
 }
 
 # ==========================================
-# 2. CONECTOR DE DATOS Y NORMALIZACIÓN
+# 2. CONECTOR DE DATOS
 # ==========================================
 @st.cache_data(ttl=3600)
 def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
@@ -180,18 +166,6 @@ def descargar_datos_liga(codigo_liga, temp_act="2627", temp_prev="2526"):
             'HS': 'tiros_tot_l', 'AS': 'tiros_tot_v', 'HC': 'HC', 'AC': 'AC', 'HY': 'HY', 'AY': 'AY'
         })
         df = df.dropna(subset=['local', 'visitante', 'goles_l', 'goles_v']).copy()
-        
-        # Mapeo limpio para unificar nombres breves de la API con los oficiales
-        mapping_nombres = {
-            "Alaves": "Deportivo Alavés", "Athletic Bilbao": "Athletic Club", "Celta": "Real Club Celta de Vigo",
-            "Deportivo": "Real Club Deportivo de A Coruña", "Racing Santander": "Real Racing Club de Santander",
-            "Sociedad": "Real Sociedad de Fútbol", "Vallecano": "Rayo Vallecano de Madrid", "Betis": "Real Betis Balompié",
-            "Levante": "Levante Unión Deportiva", "Malaga": "Málaga Club de Fútbol", "Elche": "Elche Club de Fútbol",
-            "Sevilla": "Sevilla Fútbol Club", "Villarreal": "Villarreal Club de Fútbol", "Getafe": "Getafe Club de Fútbol"
-        }
-        df['local'] = df['local'].replace(mapping_nombres)
-        df['visitante'] = df['visitante'].replace(mapping_nombres)
-
         df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce')
         df = df.dropna(subset=['fecha']).sort_values('fecha')
 
@@ -424,19 +398,20 @@ with tab_jornada:
         jornada_elegida = st.selectbox("Selecciona la Jornada Oficial:", list(calendario_liga.keys()))
         partidos_jornada = calendario_liga[jornada_elegida]
     else:
-        st.info(f"Para {liga_sel}, puedes configurar los partidos de la jornada seleccionando el enfrentamiento exacto o utilizando el Análisis Táctico Individual.")
+        st.info("Para esta competición, puedes utilizar la pestaña de 'Análisis Táctico Individual' para analizar cualquier enfrentamiento.")
         partidos_jornada = []
 
     if partidos_jornada:
         filas_jornada = []
         for l, v in partidos_jornada:
-            l_match = next((eq for eq in elos_dict if l.lower() in eq.lower() or eq.lower() in l.lower()), l)
-            v_match = next((eq for eq in elos_dict if v.lower() in eq.lower() or eq.lower() in l.lower()), v)
+            # Búsqueda independiente y estricta para evitar duplicaciones
+            l_match = next((eq for eq in elos_dict if l.lower() == eq.lower() or l.lower() in eq.lower()), l)
+            v_match = next((eq for eq in elos_dict if v.lower() == eq.lower() or v.lower() in eq.lower()), v)
             
-            if l_match in elos_dict and v_match in elos_dict:
+            if l_match in elos_dict and v_match in elos_dict and l_match != v_match:
                 ml = obtener_metricas_automaticas(df_hist, l_match)
                 mv = obtener_metricas_automaticas(df_hist, v_match)
-                rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l_match], elos_dict[v_match], campo_neutral=(cod_liga_actual=="UCL"))
+                rj = ejecutar_modelo_analitico(ml, mv, elos_dict[l_match], elos_dict[v_match], campo_neutral=False)
                 
                 filas_jornada.append({
                     "Encuentro": f"{l_match} vs {v_match}",
